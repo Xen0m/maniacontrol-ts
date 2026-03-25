@@ -1,0 +1,36 @@
+{
+  "server": {
+    "host": "127.0.0.1",
+    "port": 5000,
+    "user": "SuperAdmin",
+    "password": "change-me"
+  },
+  "controller": {
+    "apiVersion": "2013-04-16",
+    "scriptApiVersion": "2.5.0",
+    "enableCallbacks": true,
+    "pollIntervalMs": 100,
+    "logLevel": "info"
+  },
+  "storage": {
+    "driver": "sqlite",
+    "url": "./data/maniacontrol.sqlite"
+  },
+  "plugins": [
+    {
+      "id": "server-info",
+      "enabled": true
+    },
+    {
+      "id": "shootmania-elite",
+      "enabled": false,
+      "settings": {
+        "historyLimit": 20,
+        "logTurns": true,
+        "logStateSnapshots": false,
+        "autoPauseEnabled": false,
+        "showWidget": true
+      }
+    }
+  ]
+}
