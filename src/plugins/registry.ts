@@ -1,11 +1,13 @@
 import type { PluginConfig } from "../config/schema.js";
 import type { ControllerPlugin, ControllerRuntimeContext } from "./plugin.js";
+import { ManiaExchangePlugin } from "./builtin/maniaexchange-plugin.js";
 import { ServerInfoPlugin } from "./builtin/server-info-plugin.js";
 import { ShootManiaElitePlugin } from "./builtin/shootmania-elite-plugin.js";
 
 const builtinPluginFactories = new Map<string, () => ControllerPlugin>([
   ["server-info", () => new ServerInfoPlugin()],
-  ["shootmania-elite", () => new ShootManiaElitePlugin()]
+  ["shootmania-elite", () => new ShootManiaElitePlugin()],
+  ["maniaexchange", () => new ManiaExchangePlugin()]
 ]);
 
 export class PluginRegistry {

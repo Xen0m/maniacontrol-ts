@@ -28,6 +28,16 @@ export interface ModeScriptInfo {
   commandDescs?: ModeScriptCommandDescriptor[];
 }
 
+export interface DedicatedMapInfo {
+  name?: string;
+  uId?: string;
+  fileName?: string;
+  author?: string;
+  environment?: string;
+  mapType?: string;
+  mapStyle?: string;
+}
+
 export class DedicatedClient {
   private readonly transport: GbxRemoteClient;
   private readonly logger: Logger;
@@ -90,6 +100,27 @@ export class DedicatedClient {
         name: readString(command, "name")
       }))
     };
+  }
+
+  public async getMapInfo(fileName: string): Promise<DedicatedMapInfo> {
+    const result = await this.callStructWithParams("GetMapInfo", [fileName]);
+    return {
+      name: readString(result, "name"),
+      uId: readString(result, "uId"),
+      fileName: readString(result, "fileName"),
+      author: readString(result, "author"),
+      environment: readString(result, "environment"),
+      mapType: readString(result, "mapType"),
+      mapStyle: readString(result, "mapStyle")
+    };
+  }
+
+  public async addMap(fileName: string): Promise<void> {
+    await this.callBoolean("AddMap", [fileName]);
+  }
+
+  public async insertMap(fileName: string): Promise<void> {
+    await this.callBoolean("InsertMap", [fileName]);
   }
 
   public async chatSendServerMessage(message: string, recipients?: string[]): Promise<void> {
@@ -205,7 +236,14 @@ export class DedicatedClient {
   }
 
   private async callStruct(method: string): Promise<Record<string, XmlRpcValue>> {
-    const result = await this.transport.call(method, []);
+    return this.callStructWithParams(method, []);
+  }
+
+  private async callStructWithParams(
+    method: string,
+    params: XmlRpcValue[]
+  ): Promise<Record<string, XmlRpcValue>> {
+    const result = await this.transport.call(method, params);
     if (typeof result !== "object" || result === null || Array.isArray(result)) {
       throw new Error(`${method} returned an unexpected payload`);
     }

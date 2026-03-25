@@ -1,0 +1,418 @@
+import type { PlayerManialinkPageAnswerEvent } from "../../core/callbacks.js";
+import { entry, frame, label, manialink, quad, renderManialink } from "../../ui/manialink.js";
+import type { ControllerPlugin, PluginContext } from "../plugin.js";
+import { MapImportService } from "../../maps/map-import-service.js";
+import type { SmxMapSummary } from "../../integrations/mania-exchange/smx-client.js";
+
+interface ManiaExchangePluginSettings {
+  mapsDirectory: string;
+  targetRelativeDirectory: string;
+  importOnStartIds: number[];
+  insertMode: "add" | "insert";
+  announceImports: boolean;
+  showWidget: boolean;
+  searchLimit: number;
+  defaultQuery: string;
+}
+
+const DEFAULT_SETTINGS: ManiaExchangePluginSettings = {
+  mapsDirectory: "./server/UserData/Maps/My Maps/SMX",
+  targetRelativeDirectory: "My Maps\\SMX",
+  importOnStartIds: [],
+  insertMode: "add",
+  announceImports: true,
+  showWidget: true,
+  searchLimit: 6,
+  defaultQuery: "elite"
+};
+
+const MX_WIDGET_ID = "maniacontrol-ts.maniaexchange.launcher";
+const MX_PANEL_ID = "maniacontrol-ts.maniaexchange.panel";
+const ACTION_OPEN_PANEL = "maniacontrol.ts.mx.open";
+const ACTION_CLOSE_PANEL = "maniacontrol.ts.mx.close";
+const ACTION_SEARCH = "maniacontrol.ts.mx.search";
+const ACTION_IMPORT_PREFIX = "maniacontrol.ts.mx.import.";
+const SEARCH_ENTRY_NAME = "maniacontrol.ts.mx.query";
+
+interface PlayerMxState {
+  query: string;
+  results: SmxMapSummary[];
+  busy: boolean;
+  error?: string;
+}
+
+export class ManiaExchangePlugin implements ControllerPlugin {
+  public readonly id = "maniaexchange";
+
+  private context?: PluginContext;
+  private settings = DEFAULT_SETTINGS;
+  private readonly playerState = new Map<string, PlayerMxState>();
+
+  public async setup(context: PluginContext): Promise<void> {
+    this.context = context;
+    this.settings = parseSettings(context.pluginConfig.settings);
+
+    context.logger.info(
+      {
+        mapsDirectory: this.settings.mapsDirectory,
+        targetRelativeDirectory: this.settings.targetRelativeDirectory,
+        importOnStartIds: this.settings.importOnStartIds,
+        insertMode: this.settings.insertMode,
+        showWidget: this.settings.showWidget,
+        searchLimit: this.settings.searchLimit
+      },
+      "ManiaExchange plugin loaded"
+    );
+
+    context.callbacks.on("manialink-answer", (event) => {
+      void this.handleManialinkAnswer(event as PlayerManialinkPageAnswerEvent);
+    });
+
+    if (this.settings.showWidget) {
+      await this.renderLauncherWidget();
+    }
+  }
+
+  public async start(): Promise<void> {
+    if (!this.context || this.settings.importOnStartIds.length === 0) {
+      return;
+    }
+
+    const importer = new MapImportService(this.context.client, this.context.logger);
+    for (const mapId of this.settings.importOnStartIds) {
+      try {
+        const result = await importer.importMapById(mapId, {
+          mapsDirectory: this.settings.mapsDirectory,
+          targetRelativeDirectory: this.settings.targetRelativeDirectory,
+          insertMode: this.settings.insertMode
+        });
+
+        this.context.logger.info(
+          {
+            mapId,
+            fileName: result.serverFileName,
+            insertedWith: result.insertedWith
+          },
+          "Imported SMX map"
+        );
+
+        if (this.settings.announceImports) {
+          await this.context.ui.sendInfo(
+            `$fffImported MX map $ff0#${result.map.mapId}$fff: ${formatMapLabel(result.map)}`
+          );
+        }
+      } catch (error) {
+        this.context.logger.error({ error, mapId }, "Failed to import SMX map");
+        if (this.settings.announceImports) {
+          await this.context.ui.sendInfo(`$f00Failed to import MX map #${mapId}$fff.`);
+        }
+      }
+    }
+  }
+
+  public async stop(): Promise<void> {
+    await this.context?.ui.hideWidget();
+  }
+
+  private async handleManialinkAnswer(event: PlayerManialinkPageAnswerEvent): Promise<void> {
+    if (!this.context || !event.login || !event.answer) {
+      return;
+    }
+
+    if (event.answer === ACTION_OPEN_PANEL) {
+      await this.openPanel(event.login);
+      return;
+    }
+
+    if (event.answer === ACTION_CLOSE_PANEL) {
+      await this.context.ui.hideWidget([event.login]);
+      if (this.settings.showWidget) {
+        await this.renderLauncherWidget([event.login]);
+      }
+      return;
+    }
+
+    if (event.answer === ACTION_SEARCH) {
+      const query = event.entries.find((entryValue) => entryValue.name === SEARCH_ENTRY_NAME)?.value?.trim()
+        || this.getPlayerState(event.login).query;
+      await this.searchAndRender(event.login, query);
+      return;
+    }
+
+    if (event.answer.startsWith(ACTION_IMPORT_PREFIX)) {
+      const mapId = Number(event.answer.slice(ACTION_IMPORT_PREFIX.length));
+      if (Number.isInteger(mapId) && mapId > 0) {
+        await this.importAndRender(event.login, mapId);
+      }
+    }
+  }
+
+  private async openPanel(login: string): Promise<void> {
+    const state = this.getPlayerState(login);
+    await this.renderPanel(login, state);
+  }
+
+  private async searchAndRender(login: string, query: string): Promise<void> {
+    const state = this.getPlayerState(login);
+    state.query = query || this.settings.defaultQuery;
+    state.busy = true;
+    state.error = undefined;
+    await this.renderPanel(login, state);
+
+    const importer = new MapImportService(this.context!.client, this.context!.logger);
+    try {
+      state.results = await importer.searchMaps(state.query, this.settings.searchLimit);
+      if (state.results.length === 0) {
+        state.error = "No maps found";
+      }
+    } catch (error) {
+      this.context?.logger.error({ error, login, query: state.query }, "SMX search failed");
+      state.error = "SMX search failed";
+      state.results = [];
+    } finally {
+      state.busy = false;
+    }
+
+    await this.renderPanel(login, state);
+  }
+
+  private async importAndRender(login: string, mapId: number): Promise<void> {
+    const state = this.getPlayerState(login);
+    state.busy = true;
+    state.error = undefined;
+    await this.renderPanel(login, state);
+
+    const importer = new MapImportService(this.context!.client, this.context!.logger);
+    try {
+      const result = await importer.importMapById(mapId, {
+        mapsDirectory: this.settings.mapsDirectory,
+        targetRelativeDirectory: this.settings.targetRelativeDirectory,
+        insertMode: this.settings.insertMode
+      });
+
+      await this.context?.ui.sendInfo(
+        `$fffImported MX map $ff0#${result.map.mapId}$fff: ${formatMapLabel(result.map)}`,
+        [login]
+      );
+      state.results = state.results.filter((map) => map.mapId !== mapId);
+    } catch (error) {
+      this.context?.logger.error({ error, login, mapId }, "SMX import failed from panel");
+      state.error = `Import failed for #${mapId}`;
+    } finally {
+      state.busy = false;
+    }
+
+    await this.renderPanel(login, state);
+  }
+
+  private async renderLauncherWidget(recipients?: string[]): Promise<void> {
+    if (!this.context || !this.settings.showWidget) {
+      return;
+    }
+
+    const xml = renderManialink(
+      manialink(MX_WIDGET_ID, [
+        frame(
+          {
+            posn: "-118 62 1"
+          },
+          [
+            quad({
+              sizen: "28 7",
+              bgcolor: "000a",
+              action: ACTION_OPEN_PANEL
+            }),
+            label({
+              posn: "1 -1 2",
+              sizen: "24 4",
+              text: "$fffSMX Import",
+              textsize: "1.4",
+              action: ACTION_OPEN_PANEL
+            })
+          ]
+        )
+      ])
+    );
+
+    await this.context.ui.showWidget(xml, recipients);
+    this.context.ui.logWidgetUpdate(MX_WIDGET_ID);
+  }
+
+  private async renderPanel(login: string, state: PlayerMxState): Promise<void> {
+    if (!this.context) {
+      return;
+    }
+
+    const xml = renderSmxPanel(state);
+    await this.context.ui.showWidget(xml, [login]);
+    this.context.ui.logWidgetUpdate(MX_PANEL_ID);
+  }
+
+  private getPlayerState(login: string): PlayerMxState {
+    const existing = this.playerState.get(login);
+    if (existing) {
+      return existing;
+    }
+
+    const created = {
+      query: this.settings.defaultQuery,
+      results: [],
+      busy: false
+    } satisfies PlayerMxState;
+    this.playerState.set(login, created);
+    return created;
+  }
+}
+
+function parseSettings(settings: Record<string, unknown> | undefined): ManiaExchangePluginSettings {
+  return {
+    mapsDirectory:
+      typeof settings?.mapsDirectory === "string"
+        ? settings.mapsDirectory
+        : DEFAULT_SETTINGS.mapsDirectory,
+    targetRelativeDirectory:
+      typeof settings?.targetRelativeDirectory === "string"
+        ? settings.targetRelativeDirectory
+        : DEFAULT_SETTINGS.targetRelativeDirectory,
+    importOnStartIds: Array.isArray(settings?.importOnStartIds)
+      ? settings.importOnStartIds.filter((value): value is number => typeof value === "number")
+      : DEFAULT_SETTINGS.importOnStartIds,
+    insertMode: settings?.insertMode === "insert" ? "insert" : DEFAULT_SETTINGS.insertMode,
+    announceImports:
+      typeof settings?.announceImports === "boolean"
+        ? settings.announceImports
+        : DEFAULT_SETTINGS.announceImports,
+    showWidget:
+      typeof settings?.showWidget === "boolean"
+        ? settings.showWidget
+        : DEFAULT_SETTINGS.showWidget,
+    searchLimit:
+      typeof settings?.searchLimit === "number" && settings.searchLimit > 0
+        ? Math.floor(settings.searchLimit)
+        : DEFAULT_SETTINGS.searchLimit,
+    defaultQuery:
+      typeof settings?.defaultQuery === "string" && settings.defaultQuery.trim().length > 0
+        ? settings.defaultQuery.trim()
+        : DEFAULT_SETTINGS.defaultQuery
+  };
+}
+
+function formatMapLabel(map: { name?: string; gbxMapName?: string; author?: string }): string {
+  const name = map.gbxMapName ?? map.name ?? "unknown";
+  return map.author ? `${name}$fff by $0bf${map.author}` : name;
+}
+
+function renderSmxPanel(state: PlayerMxState): string {
+  const rows = state.results.slice(0, 6).flatMap((result, index) => {
+    const rowY = -20 - index * 6.5;
+    return [
+      quad({
+        posn: "0 " + rowY + " 1",
+        sizen: "104 5.5",
+        bgcolor: index % 2 === 0 ? "fff1" : "fff2"
+      }),
+      label({
+        posn: "-50 " + (rowY - 0.9) + " 2",
+        sizen: "70 4",
+        textsize: "1.2",
+        text: `$fff#${result.mapId} ${truncate(result.gbxMapName ?? result.name ?? "unknown", 34)}`
+      }),
+      label({
+        posn: "10 " + (rowY - 0.9) + " 2",
+        sizen: "24 4",
+        textsize: "1.1",
+        text: `$0bf${truncate(result.author ?? "-", 14)}`
+      }),
+      quad({
+        posn: "43 " + (rowY - 0.2) + " 2",
+        sizen: "16 4.2",
+        bgcolor: "2a5c",
+        action: `${ACTION_IMPORT_PREFIX}${result.mapId}`
+      }),
+      label({
+        posn: "45 " + (rowY - 1.1) + " 3",
+        sizen: "12 3",
+        textsize: "1.1",
+        text: "$fffImport",
+        action: `${ACTION_IMPORT_PREFIX}${result.mapId}`
+      })
+    ];
+  });
+
+  return renderManialink(
+    manialink(MX_PANEL_ID, [
+      frame(
+        {
+          posn: "-82 46 1"
+        },
+        [
+          quad({
+            sizen: "116 58",
+            bgcolor: "001d"
+          }),
+          quad({
+            posn: "0 0 1",
+            sizen: "116 6",
+            bgcolor: "0b2d"
+          }),
+          label({
+            posn: "-54 -1 2",
+            textsize: "2",
+            text: "$fffSMX IMPORT"
+          }),
+          quad({
+            posn: "50 -1 2",
+            sizen: "8 4",
+            bgcolor: "a22d",
+            action: ACTION_CLOSE_PANEL
+          }),
+          label({
+            posn: "52 -1.1 3",
+            textsize: "1.2",
+            text: "$fffX",
+            action: ACTION_CLOSE_PANEL
+          }),
+          label({
+            posn: "-54 -9 2",
+            textsize: "1.3",
+            text: "$aaaSearch ShootMania Exchange"
+          }),
+          entry({
+            posn: "-54 -14 2",
+            sizen: "72 4.4",
+            name: SEARCH_ENTRY_NAME,
+            default: state.query,
+            textsize: "1.2",
+            style: "TextValueSmall"
+          }),
+          quad({
+            posn: "24 -14 2",
+            sizen: "16 4.4",
+            bgcolor: "26ad",
+            action: ACTION_SEARCH
+          }),
+          label({
+            posn: "26 -15 3",
+            textsize: "1.2",
+            text: state.busy ? "$fff..." : "$fffSearch",
+            action: ACTION_SEARCH
+          }),
+          label({
+            posn: "-54 -18.5 2",
+            textsize: "1.05",
+            text: state.error
+              ? `$f88${state.error}`
+              : state.results.length > 0
+                ? `$8f8${state.results.length} result(s)`
+                : "$888Click Search to query SMX"
+          }),
+          ...rows
+        ]
+      )
+    ])
+  );
+}
+
+function truncate(value: string, maxLength: number): string {
+  return value.length > maxLength ? `${value.slice(0, maxLength - 1)}…` : value;
+}

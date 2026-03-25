@@ -26,6 +26,7 @@ This is not a drop-in replacement yet. It includes:
 - a plugin API
 - one built-in example plugin
 - one built-in ShootMania Elite state plugin
+- one built-in ManiaExchange import plugin
 - a lightweight TypeScript-only in-game UI layer for chat and manialink widgets
 - architecture and migration notes
 
@@ -35,6 +36,15 @@ This is not a drop-in replacement yet. It includes:
 2. Fill in your dedicated server XML-RPC credentials
 3. Install dependencies
 4. Run `npm run dev`
+
+## ManiaExchange import
+
+The project now includes a first SMX integration layer:
+
+- `npm run mx:search -- <query> --config maniacontrol.local.json`
+- `npm run mx:import -- <mapId> --maps-dir "/abs/path/to/server/UserData/Maps/My Maps/SMX" --target-dir "My Maps\\SMX" --config maniacontrol.local.json`
+
+There is also a built-in `maniaexchange` plugin that can import configured map IDs on startup.
 
 ## Initial target architecture
 

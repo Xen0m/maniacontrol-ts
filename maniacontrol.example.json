@@ -31,6 +31,20 @@
         "autoPauseEnabled": false,
         "showWidget": true
       }
+    },
+    {
+      "id": "maniaexchange",
+      "enabled": false,
+      "settings": {
+        "mapsDirectory": "./server/UserData/Maps/My Maps/SMX",
+        "targetRelativeDirectory": "My Maps\\SMX",
+        "importOnStartIds": [],
+        "insertMode": "add",
+        "announceImports": true,
+        "showWidget": true,
+        "searchLimit": 6,
+        "defaultQuery": "elite"
+      }
     }
   ]
 }

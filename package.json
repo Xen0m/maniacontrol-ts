@@ -8,6 +8,8 @@
     "dev": "tsx src/index.ts --config maniacontrol.local.json",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js --config maniacontrol.local.json",
+    "mx:search": "tsx src/cli/import-smx-map.ts search",
+    "mx:import": "tsx src/cli/import-smx-map.ts import",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run"
   },

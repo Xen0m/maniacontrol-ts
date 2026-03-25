@@ -50,6 +50,13 @@ export function label(attributes: Record<string, Scalar | undefined>): ElementNo
   };
 }
 
+export function entry(attributes: Record<string, Scalar | undefined>): ElementNode {
+  return {
+    name: "entry",
+    attributes
+  };
+}
+
 function renderNode(node: ElementNode | string): string {
   if (typeof node === "string") {
     return escapeXml(node);
