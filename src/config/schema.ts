@@ -42,6 +42,7 @@ export const appConfigSchema = z.object({
     enabled: z.boolean().default(false),
     host: z.string().min(1).default("127.0.0.1"),
     port: z.number().int().positive().default(3001),
+    serverFilesRoot: z.string().min(1).default("./server"),
     token: z.string().min(1).optional(),
     principals: z.array(adminPrincipalConfigSchema).default([]),
     modePresets: z.array(adminModePresetSchema).default([]),

@@ -9,6 +9,7 @@ Private HTTP API intended for `maniacontrol-companion`.
 - `enabled`
 - `host`
 - `port`
+- `serverFilesRoot`
 - `token`
 - `principals`
 - `auditPath`
@@ -71,7 +72,11 @@ Returns the current mode script metadata and available command descriptors.
 
 ### `GET /server/mode/presets`
 
-Returns configured mode presets available for the live admin UI.
+Returns configured mode presets available for the live admin UI, including asset-check status derived from `admin.serverFilesRoot`.
+
+### `GET /server/mode/catalog`
+
+Returns the full mode catalog with filesystem asset status for each preset.
 
 ### `GET /server/mode-script-settings`
 
@@ -136,9 +141,11 @@ Example body:
 
 ```json
 {
-  "presetId": "joust"
+  "presetId": "practice"
 }
 ```
+
+If the preset references missing assets and they can be verified on disk, the endpoint returns `409`.
 
 or
 

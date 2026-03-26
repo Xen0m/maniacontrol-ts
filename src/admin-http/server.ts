@@ -13,6 +13,7 @@ import { SseHub } from "./sse-hub.js";
 import { AdminAuditLog } from "./audit-log.js";
 import { AdminActivityLog } from "./activity-log.js";
 import { LocalRecordsStore } from "./local-records-store.js";
+import { buildModeCatalog } from "../modes/mode-catalog.js";
 
 type AdminRole = "owner" | "operator" | "observer";
 
@@ -228,16 +229,31 @@ export class AdminHttpServer {
         if (!this.hasScope(auth, "read")) {
           return await this.writeForbidden(response, auth, "read");
         }
+        const catalog = await this.getModeCatalog();
         return await this.writeJson(response, 200, {
-          count: this.config.modePresets.length,
-          presets: this.config.modePresets.map((preset) => ({
+          count: catalog.length,
+          serverFilesRoot: this.config.serverFilesRoot,
+          presets: catalog.map((preset) => ({
             id: preset.id,
             label: preset.label,
             description: preset.description,
             scriptName: preset.scriptName,
             matchSettings: preset.matchSettings,
-            restartAfterApply: preset.restartAfterApply
+            restartAfterApply: preset.restartAfterApply,
+            status: preset.status
           }))
+        });
+      }
+
+      if (method === "GET" && url.pathname === "/server/mode/catalog") {
+        if (!this.hasScope(auth, "read")) {
+          return await this.writeForbidden(response, auth, "read");
+        }
+        const catalog = await this.getModeCatalog();
+        return await this.writeJson(response, 200, {
+          count: catalog.length,
+          serverFilesRoot: this.config.serverFilesRoot,
+          presets: catalog
         });
       }
 
@@ -432,6 +448,15 @@ export class AdminHttpServer {
         if (!preset) {
           return await this.writeJson(response, 404, { error: "unknown preset" });
         }
+        const catalog = await this.getModeCatalog();
+        const catalogEntry = catalog.find((entry) => entry.id === presetId);
+        if (catalogEntry?.status.checksAvailable && !catalogEntry.status.canApply) {
+          return await this.writeJson(response, 409, {
+            error: "preset assets missing",
+            presetId,
+            status: catalogEntry.status
+          });
+        }
 
         if (preset.matchSettings) {
           await this.client.loadMatchSettings(preset.matchSettings);
@@ -463,7 +488,8 @@ export class AdminHttpServer {
             description: preset.description,
             scriptName: preset.scriptName,
             matchSettings: preset.matchSettings,
-            restartAfterApply: preset.restartAfterApply
+            restartAfterApply: preset.restartAfterApply,
+            status: catalogEntry?.status
           },
           modeScriptInfo,
           modeScriptSettings
@@ -1135,6 +1161,13 @@ export class AdminHttpServer {
     await this.activityLog.append({
       timestamp: new Date().toISOString(),
       ...entry
+    });
+  }
+
+  private async getModeCatalog() {
+    return buildModeCatalog({
+      modePresets: this.config.modePresets,
+      serverFilesRoot: this.config.serverFilesRoot
     });
   }
 

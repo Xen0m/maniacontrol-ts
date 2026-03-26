@@ -16,6 +16,7 @@
     "enabled": true,
     "host": "127.0.0.1",
     "port": 3001,
+    "serverFilesRoot": "./server",
     "token": "replace-with-a-strong-token",
     "principals": [
       {
@@ -51,32 +52,32 @@
     "modePresets": [
       {
         "id": "elite",
-        "label": "Elite",
-        "description": "Baseline Elite preset",
-        "matchSettings": "MatchSettings/elite-test.txt"
+        "label": "ElitePro",
+        "description": "Example preset based on the ElitePro script and a local matchsettings file.",
+        "scriptName": "ShootMania\\Elite\\ElitePro.Script.txt",
+        "matchSettings": "MatchSettings/elitepro-maps-test.txt",
+        "restartAfterApply": true
       },
       {
         "id": "practice",
         "label": "Practice",
-        "description": "Example practice preset using Elite script settings",
-        "scriptName": "ShootMania\\Elite.Script.txt",
+        "description": "Example practice preset using ElitePro script settings. Validate the exact flags on your server.",
+        "scriptName": "ShootMania\\Elite\\ElitePro.Script.txt",
         "modeSettings": {
-          "S_PracticeMode": true
+          "S_Mode": 1
         },
         "restartAfterApply": true
       },
       {
         "id": "duel-elite",
         "label": "Duel Elite",
-        "description": "Adapt this preset to your Duel Elite script or matchsettings",
-        "scriptName": "ShootMania\\Elite.Script.txt",
-        "restartAfterApply": true
-      },
-      {
-        "id": "joust",
-        "label": "Joust",
-        "description": "Adapt this preset to the Joust script or matchsettings installed on your server",
-        "scriptName": "ShootMania\\Joust.Script.txt",
+        "description": "Example 1v1 ElitePro preset. Validate the exact mode settings on your server.",
+        "scriptName": "ShootMania\\Elite\\ElitePro.Script.txt",
+        "modeSettings": {
+          "S_Mode": 0,
+          "S_NbPlayersPerTeamMin": 1,
+          "S_NbPlayersPerTeamMax": 1
+        },
         "restartAfterApply": true
       }
     ],
