@@ -42,6 +42,7 @@
           "maps.write",
           "elite.write",
           "chat.write",
+          "votes.write",
           "mode.write",
           "mx.write"
         ]

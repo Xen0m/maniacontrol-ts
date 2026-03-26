@@ -35,6 +35,7 @@ Typical scopes:
 - `maps.write`
 - `elite.write`
 - `chat.write`
+- `votes.write`
 - `mode.write`
 - `mx.write`
 
@@ -209,6 +210,7 @@ Returns recent persisted domain activity entries.
 - map actions require `maps.write`
 - Elite controls require `elite.write`
 - chat actions require `chat.write`
+- vote actions require `votes.write`
 - mode script edits require `mode.write`
 - SMX imports require `mx.write`
 
@@ -300,6 +302,20 @@ Missing scope returns:
 }
 ```
 
+### `POST /server/votes/call`
+
+```json
+{
+  "command": "NextMap"
+}
+```
+
+Optional fields:
+
+- `ratio`
+- `timeout`
+- `voters`
+
 Current event types:
 
 - `system.connected`
@@ -326,3 +342,4 @@ Current event types:
 - `server.playerUnblacklisted`
 - `server.chatMessageSent`
 - `server.noticeSent`
+- `server.voteCalled`

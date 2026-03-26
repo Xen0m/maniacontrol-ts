@@ -406,6 +406,19 @@ export class DedicatedClient {
     await this.callBoolean("SendHideManialinkPage");
   }
 
+  public async callVote(xmlRpcRequest: string): Promise<void> {
+    await this.callBoolean("CallVote", [xmlRpcRequest]);
+  }
+
+  public async callVoteEx(
+    xmlRpcRequest: string,
+    ratio = -1,
+    timeout = 0,
+    voters = 0
+  ): Promise<void> {
+    await this.callBoolean("CallVoteEx", [xmlRpcRequest, ratio, timeout, voters]);
+  }
+
   public async setModeScriptSettings(settings: Record<string, XmlRpcValue>): Promise<void> {
     await this.callBoolean("SetModeScriptSettings", [settings]);
   }

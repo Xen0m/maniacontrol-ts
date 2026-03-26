@@ -662,6 +662,59 @@ export class AdminHttpServer {
         });
       }
 
+      if (method === "POST" && url.pathname === "/server/votes/call") {
+        if (!this.hasScope(auth, "votes.write")) {
+          return await this.writeForbidden(response, auth, "votes.write");
+        }
+        const body = await this.readJsonBody(request);
+        const command = typeof body.command === "string" ? body.command.trim() : "";
+        const ratio = typeof body.ratio === "number" ? body.ratio : Number(body.ratio ?? -1);
+        const timeout = typeof body.timeout === "number" ? body.timeout : Number(body.timeout ?? 0);
+        const voters = typeof body.voters === "number" ? body.voters : Number(body.voters ?? 0);
+        if (!command) {
+          return await this.writeJson(response, 400, { error: "command is required" });
+        }
+
+        const xmlRpcRequest = buildXmlRpcVoteRequest(command);
+        if (
+          Number.isFinite(ratio) && ratio !== -1
+          || Number.isFinite(timeout) && timeout !== 0
+          || Number.isFinite(voters) && voters !== 0
+        ) {
+          await this.client.callVoteEx(
+            xmlRpcRequest,
+            Number.isFinite(ratio) ? ratio : -1,
+            Number.isFinite(timeout) ? timeout : 0,
+            Number.isFinite(voters) ? voters : 0
+          );
+        } else {
+          await this.client.callVote(xmlRpcRequest);
+        }
+
+        this.sseHub.publish("server.voteCalled", {
+          command,
+          ratio: Number.isFinite(ratio) ? ratio : -1,
+          timeout: Number.isFinite(timeout) ? timeout : 0,
+          voters: Number.isFinite(voters) ? voters : 0
+        });
+        return await this.writeJson(response, 200, {
+          ok: true,
+          command,
+          ratio: Number.isFinite(ratio) ? ratio : -1,
+          timeout: Number.isFinite(timeout) ? timeout : 0,
+          voters: Number.isFinite(voters) ? voters : 0
+        }, {
+          action: "server.votes.call",
+          success: true,
+          detail: {
+            command,
+            ratio: Number.isFinite(ratio) ? ratio : -1,
+            timeout: Number.isFinite(timeout) ? timeout : 0,
+            voters: Number.isFinite(voters) ? voters : 0
+          }
+        });
+      }
+
       if (method === "GET" && url.pathname === "/elite/state") {
         if (!this.hasScope(auth, "read")) {
           return await this.writeForbidden(response, auth, "read");
@@ -1059,6 +1112,8 @@ function formatAdminActionChatMessage(
       return null;
     case "server.chat.notice":
       return null;
+    case "server.votes.call":
+      return "[ManiaControl] Started a vote";
     default:
       return null;
   }
@@ -1068,6 +1123,7 @@ function classifyActivityCategory(action: string): string {
   if (action.startsWith("server.players.")) return "players";
   if (action.startsWith("server.maps.")) return "maps";
   if (action.startsWith("server.chat.")) return "chat";
+  if (action.startsWith("server.votes.")) return "votes";
   if (action.startsWith("server.mode-script")) return "mode";
   if (action.startsWith("elite.")) return "elite";
   if (action.startsWith("mx.")) return "smx";
@@ -1104,6 +1160,8 @@ function summarizeAuditAction(action: string, detail?: Record<string, unknown>):
     case "server.chat.message":
     case "server.chat.notice":
       return message ? `Sent message: ${message}` : "Sent server message";
+    case "server.votes.call":
+      return typeof detail?.command === "string" ? `Started vote: ${detail.command}` : "Started vote";
     case "elite.pause":
       return "Paused match";
     case "elite.resume":
@@ -1147,6 +1205,20 @@ function readReasonFromEvent(event: { params?: unknown[] }): string | undefined 
   return undefined;
 }
 
+function buildXmlRpcVoteRequest(command: string): string {
+  const escaped = escapeXml(command);
+  return `<?xml version="1.0"?><methodCall><methodName>${escaped}</methodName><params></params></methodCall>`;
+}
+
+function escapeXml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll("\"", "&quot;")
+    .replaceAll("'", "&apos;");
+}
+
 function defaultScopesForRole(role: AdminRole): string[] {
   if (role === "owner") {
     return ["*"];
@@ -1161,6 +1233,7 @@ function defaultScopesForRole(role: AdminRole): string[] {
       "elite.write",
       "mode.write",
       "chat.write",
+      "votes.write",
       "mx.write",
       "audit.read"
     ];
