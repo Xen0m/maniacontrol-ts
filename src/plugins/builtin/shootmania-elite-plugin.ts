@@ -384,7 +384,7 @@ function renderEliteStateWidget(state: EliteStateSnapshot): string {
     manialink(ELITE_WIDGET_ID, [
       frame(
         {
-          posn: "140 85 5"
+          posn: "132 76 5"
         },
         renderEliteStatusWidget(summaryLines, state)
       )
@@ -400,51 +400,51 @@ function renderEliteStatusWidget(
   return [
     quad({
       posn: "0 0 0",
-      sizen: "40 9.5",
+      sizen: "48 12.5",
       halign: "right",
       valign: "top",
       style: "Bgs1InRace",
       substyle: "BgTitleShadow"
     }),
     label({
-      posn: "-36 -1 2",
-      sizen: "20 2",
+      posn: "-43 -1.1 2",
+      sizen: "24 2.5",
       halign: "left",
       style: "TextTitle1",
       textcolor: "fff",
-      textsize: 0.95,
+      textsize: 1.1,
       textemboss: "1",
       text: "Elite"
     }),
     ...compactLines.flatMap((line, index) => {
-      const rowY = -2.7 - index * 1.55;
+      const rowY = -3.3 - index * 2.2;
       return [
         label({
-          posn: "-36 " + rowY + " 2",
-          sizen: "8 1.5",
+          posn: "-43 " + rowY + " 2",
+          sizen: "10 2",
           halign: "left",
           textcolor: "ddd",
-          textsize: 0.62,
+          textsize: 0.8,
           textemboss: "1",
           text: stripColorCodes(line.labelText)
         }),
         label({
-          posn: "-26.5 " + rowY + " 2",
-          sizen: "22 1.5",
+          posn: "-31 " + rowY + " 2",
+          sizen: "26 2",
           halign: "left",
           textcolor: "fff",
-          textsize: 0.65,
+          textsize: 0.82,
           textemboss: "1",
-          text: truncate(stripColorCodes(line.valueText), 18)
+          text: truncate(stripColorCodes(line.valueText), 24)
         })
       ];
     }),
     label({
-      posn: "-36 -8.5 2",
-      sizen: "32 1.5",
+      posn: "-43 -11.2 2",
+      sizen: "38 2",
       halign: "left",
       textcolor: "fff",
-      textsize: 0.65,
+      textsize: 0.78,
       textemboss: "1",
       text: `$0f0A ${state.stats.attackerWins}$fff / $f33D ${state.stats.defenderWins}$fff`
     })

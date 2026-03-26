@@ -237,7 +237,7 @@ export class ManiaExchangePlugin implements ControllerPlugin {
       manialink(MX_WIDGET_ID, [
         frame(
           {
-            posn: "156 -17 5"
+            posn: "146 -24 5"
           },
           renderSidebarEntryContent()
         )
@@ -448,23 +448,23 @@ function renderSmxPanel(state: PlayerMxState): string {
 function renderSidebarEntryContent(): Array<ReturnType<typeof quad> | ReturnType<typeof label>> {
   return [
     quad({
-      sizen: "6 6",
+      sizen: "8 8",
       style: "Bgs1InRace",
       substyle: "BgTitleShadow"
     }),
     label({
-      posn: "0 -0.5 2",
-      sizen: "5 2",
+      posn: "0 -0.4 2",
+      sizen: "7 3",
       style: "TextTitle1",
       textcolor: "fff",
       text: "SMX",
-      textsize: "0.85",
+      textsize: "1.05",
       textemboss: "1",
       action: ACTION_OPEN_PANEL
     }),
     quad({
-      posn: "0 -3.5 1",
-      sizen: "6 0.5",
+      posn: "0 -4.7 1",
+      sizen: "8 0.6",
       bgcolor: "08bf"
     })
   ];
