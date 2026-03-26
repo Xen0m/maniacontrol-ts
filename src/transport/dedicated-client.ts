@@ -125,7 +125,8 @@ export class DedicatedClient {
 
   public async chatSendServerMessage(message: string, recipients?: string[]): Promise<void> {
     if (recipients && recipients.length > 0) {
-      await this.callBoolean("ChatSendServerMessageToLogin", [message, recipients]);
+      // The dedicated server ToLogin variant expects a single login string.
+      await this.callBoolean("ChatSendServerMessageToLogin", [message, recipients[0]]);
       return;
     }
 
@@ -139,7 +140,7 @@ export class DedicatedClient {
     variant = 0
   ): Promise<void> {
     if (recipients && recipients.length > 0) {
-      await this.callBoolean("SendNoticeToLogin", [recipients, message, avatarLogin ?? "", variant]);
+      await this.callBoolean("SendNoticeToLogin", [recipients[0], message, avatarLogin ?? "", variant]);
       return;
     }
 
@@ -154,7 +155,7 @@ export class DedicatedClient {
   ): Promise<void> {
     if (recipients && recipients.length > 0) {
       await this.callBoolean("SendDisplayManialinkPageToLogin", [
-        recipients,
+        recipients[0],
         manialinkXml,
         timeout,
         hideOnClick
@@ -167,7 +168,7 @@ export class DedicatedClient {
 
   public async sendHideManialinkPage(recipients?: string[]): Promise<void> {
     if (recipients && recipients.length > 0) {
-      await this.callBoolean("SendHideManialinkPageToLogin", [recipients]);
+      await this.callBoolean("SendHideManialinkPageToLogin", [recipients[0]]);
       return;
     }
 
