@@ -24,6 +24,24 @@ Returns startup snapshot plus current dedicated status and game mode.
 
 Returns the current map info from the dedicated server.
 
+### `GET /server/maps/next`
+
+Returns the currently scheduled next map when available.
+
+### `GET /server/maps?limit=50&offset=0`
+
+Returns a slice of the server map list.
+
+### `POST /server/maps/choose-next`
+
+Example body:
+
+```json
+{
+  "fileName": "MatchSettings\\My Maps\\example.Map.Gbx"
+}
+```
+
 ### `GET /elite/state`
 
 Returns the current ShootMania Elite state snapshot when the plugin is enabled.
@@ -63,3 +81,4 @@ Current event types:
 - `mx.import`
 - `server.beginMap`
 - `server.endMap`
+- `server.nextMapChanged`

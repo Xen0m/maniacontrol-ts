@@ -138,6 +138,39 @@ export class AdminHttpServer {
         return this.writeJson(response, 200, currentMap);
       }
 
+      if (method === "GET" && url.pathname === "/server/maps/next") {
+        const nextMap = await this.client.getNextMapInfo();
+        return this.writeJson(response, 200, nextMap);
+      }
+
+      if (method === "GET" && url.pathname === "/server/maps") {
+        const limit = clampInt(url.searchParams.get("limit"), 50, 1, 200);
+        const offset = clampInt(url.searchParams.get("offset"), 0, 0, 10_000);
+        const maps = await this.client.getMapList(limit, offset);
+        return this.writeJson(response, 200, {
+          offset,
+          limit,
+          count: maps.length,
+          maps
+        });
+      }
+
+      if (method === "POST" && url.pathname === "/server/maps/choose-next") {
+        const body = await this.readJsonBody(request);
+        const fileName = typeof body.fileName === "string" ? body.fileName.trim() : "";
+        if (!fileName) {
+          return this.writeJson(response, 400, { error: "fileName is required" });
+        }
+
+        await this.client.chooseNextMap(fileName);
+        const nextMap = await this.client.getNextMapInfo();
+        this.sseHub.publish("server.nextMapChanged", {
+          fileName,
+          nextMap
+        });
+        return this.writeJson(response, 200, nextMap);
+      }
+
       if (method === "GET" && url.pathname === "/elite/state") {
         const elitePlugin = this.getElitePlugin();
         if (!elitePlugin) {
@@ -257,4 +290,12 @@ export class AdminHttpServer {
     });
     response.end(JSON.stringify(body, null, 2));
   }
+}
+
+function clampInt(value: string | null, fallback: number, min: number, max: number): number {
+  const parsed = Number.parseInt(String(value ?? ""), 10);
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+  return Math.min(max, Math.max(min, parsed));
 }

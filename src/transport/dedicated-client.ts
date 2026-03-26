@@ -142,6 +142,58 @@ export class DedicatedClient {
     }
   }
 
+  public async getNextMapInfo(): Promise<DedicatedMapInfo> {
+    try {
+      const result = await this.callStruct("GetNextMapInfo");
+      return {
+        name: readString(result, "name"),
+        uId: readString(result, "uId"),
+        fileName: readString(result, "fileName"),
+        author: readString(result, "author"),
+        environment: readString(result, "environment"),
+        mapType: readString(result, "mapType"),
+        mapStyle: readString(result, "mapStyle")
+      };
+    } catch (error) {
+      this.logger.debug({ error }, "GetNextMapInfo failed, trying legacy fallback");
+      const result = await this.callStruct("GetNextChallengeInfo");
+      return {
+        name: readString(result, "name"),
+        uId: readString(result, "uId"),
+        fileName: readString(result, "fileName"),
+        author: readString(result, "author"),
+        environment: readString(result, "environment"),
+        mapType: readString(result, "mapType"),
+        mapStyle: readString(result, "mapStyle")
+      };
+    }
+  }
+
+  public async getMapList(length = 100, offset = 0): Promise<DedicatedMapInfo[]> {
+    const result = await this.transport.call("GetMapList", [length, offset]);
+    if (!Array.isArray(result)) {
+      throw new Error("GetMapList returned an unexpected payload");
+    }
+
+    return result
+      .filter((item): item is Record<string, XmlRpcValue> => {
+        return typeof item === "object" && item !== null && !Array.isArray(item);
+      })
+      .map((item) => ({
+        name: readString(item, "name"),
+        uId: readString(item, "uId"),
+        fileName: readString(item, "fileName"),
+        author: readString(item, "author"),
+        environment: readString(item, "environment"),
+        mapType: readString(item, "mapType"),
+        mapStyle: readString(item, "mapStyle")
+      }));
+  }
+
+  public async chooseNextMap(fileName: string): Promise<void> {
+    await this.callBoolean("ChooseNextMap", [fileName]);
+  }
+
   public async addMap(fileName: string): Promise<void> {
     await this.callBoolean("AddMap", [fileName]);
   }
