@@ -171,6 +171,22 @@ export class AdminHttpServer {
         return this.writeJson(response, 200, nextMap);
       }
 
+      if (method === "POST" && url.pathname === "/server/maps/jump") {
+        const body = await this.readJsonBody(request);
+        const uId = typeof body.uId === "string" ? body.uId.trim() : "";
+        if (!uId) {
+          return this.writeJson(response, 400, { error: "uId is required" });
+        }
+
+        await this.client.jumpToMapIdent(uId);
+        const currentMap = await this.client.getCurrentMapInfo();
+        this.sseHub.publish("server.mapJumped", {
+          uId,
+          currentMap
+        });
+        return this.writeJson(response, 200, currentMap);
+      }
+
       if (method === "GET" && url.pathname === "/elite/state") {
         const elitePlugin = this.getElitePlugin();
         if (!elitePlugin) {

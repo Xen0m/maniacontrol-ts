@@ -42,6 +42,16 @@ Example body:
 }
 ```
 
+### `POST /server/maps/jump`
+
+Example body:
+
+```json
+{
+  "uId": "L7Lz2OMZh6FVqLPfeoQceh_8Ihb"
+}
+```
+
 ### `GET /elite/state`
 
 Returns the current ShootMania Elite state snapshot when the plugin is enabled.
@@ -82,3 +92,4 @@ Current event types:
 - `server.beginMap`
 - `server.endMap`
 - `server.nextMapChanged`
+- `server.mapJumped`

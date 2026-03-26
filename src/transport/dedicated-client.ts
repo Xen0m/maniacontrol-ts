@@ -194,6 +194,10 @@ export class DedicatedClient {
     await this.callBoolean("ChooseNextMap", [fileName]);
   }
 
+  public async jumpToMapIdent(uId: string): Promise<void> {
+    await this.callBoolean("JumpToMapIdent", [uId]);
+  }
+
   public async addMap(fileName: string): Promise<void> {
     await this.callBoolean("AddMap", [fileName]);
   }
