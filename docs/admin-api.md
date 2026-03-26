@@ -69,6 +69,10 @@ Returns startup snapshot plus current dedicated status and game mode.
 
 Returns the current mode script metadata and available command descriptors.
 
+### `GET /server/mode/presets`
+
+Returns configured mode presets available for the live admin UI.
+
 ### `GET /server/mode-script-settings`
 
 Returns the current mode script settings payload as reported by the dedicated server.
@@ -125,6 +129,14 @@ Example body:
 {
   "S_TimeLimit": 60000,
   "S_ScoreLimit": 9
+}
+```
+
+### `POST /server/mode/apply-preset`
+
+```json
+{
+  "presetId": "joust"
 }
 ```
 
@@ -344,6 +356,7 @@ Current event types:
 - `server.nextMapTriggered`
 - `server.modeScriptSettingsChanged`
 - `server.modeScriptCommandsSent`
+- `server.modePresetApplied`
 - `server.playerConnect`
 - `server.playerDisconnect`
 - `server.playerKicked`

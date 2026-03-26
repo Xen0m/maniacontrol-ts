@@ -250,6 +250,14 @@ export class DedicatedClient {
     await this.callBoolean("RestartMap");
   }
 
+  public async setScriptName(scriptName: string): Promise<void> {
+    await this.callBoolean("SetScriptName", [scriptName]);
+  }
+
+  public async loadMatchSettings(fileName: string): Promise<void> {
+    await this.callBoolean("LoadMatchSettings", [fileName]);
+  }
+
   public async getPlayerList(length = 100, offset = 0, compatibility = 1): Promise<DedicatedPlayerInfo[]> {
     const result = await this.transport.call("GetPlayerList", [length, offset, compatibility]);
     if (!Array.isArray(result)) {

@@ -224,6 +224,23 @@ export class AdminHttpServer {
         return await this.writeJson(response, 200, modeScriptInfo);
       }
 
+      if (method === "GET" && url.pathname === "/server/mode/presets") {
+        if (!this.hasScope(auth, "read")) {
+          return await this.writeForbidden(response, auth, "read");
+        }
+        return await this.writeJson(response, 200, {
+          count: this.config.modePresets.length,
+          presets: this.config.modePresets.map((preset) => ({
+            id: preset.id,
+            label: preset.label,
+            description: preset.description,
+            scriptName: preset.scriptName,
+            matchSettings: preset.matchSettings,
+            restartAfterApply: preset.restartAfterApply
+          }))
+        });
+      }
+
       if (method === "GET" && url.pathname === "/server/mode-script-settings") {
         if (!this.hasScope(auth, "read")) {
           return await this.writeForbidden(response, auth, "read");
@@ -399,6 +416,67 @@ export class AdminHttpServer {
         return await this.writeJson(response, 200, nextSettings, {
           action: "server.mode-script-settings.update",
           success: true
+        });
+      }
+
+      if (method === "POST" && url.pathname === "/server/mode/apply-preset") {
+        if (!this.hasScope(auth, "mode.write")) {
+          return await this.writeForbidden(response, auth, "mode.write");
+        }
+        const body = await this.readJsonBody(request);
+        const presetId = typeof body.presetId === "string" ? body.presetId.trim() : "";
+        if (!presetId) {
+          return await this.writeJson(response, 400, { error: "presetId is required" });
+        }
+        const preset = this.config.modePresets.find((entry) => entry.id === presetId);
+        if (!preset) {
+          return await this.writeJson(response, 404, { error: "unknown preset" });
+        }
+
+        if (preset.matchSettings) {
+          await this.client.loadMatchSettings(preset.matchSettings);
+        }
+        if (preset.scriptName) {
+          await this.client.setScriptName(preset.scriptName);
+        }
+        if (preset.modeSettings && isXmlRpcStruct(preset.modeSettings)) {
+          await this.client.setModeScriptSettings(preset.modeSettings);
+        }
+        if (preset.restartAfterApply) {
+          await this.client.restartMap();
+        }
+
+        const modeScriptInfo = await this.client.getModeScriptInfo().catch(() => undefined);
+        const modeScriptSettings = await this.client.getModeScriptSettings().catch(() => undefined);
+        this.sseHub.publish("server.modePresetApplied", {
+          presetId: preset.id,
+          label: preset.label,
+          scriptName: preset.scriptName,
+          matchSettings: preset.matchSettings,
+          restartAfterApply: preset.restartAfterApply
+        });
+        return await this.writeJson(response, 200, {
+          ok: true,
+          preset: {
+            id: preset.id,
+            label: preset.label,
+            description: preset.description,
+            scriptName: preset.scriptName,
+            matchSettings: preset.matchSettings,
+            restartAfterApply: preset.restartAfterApply
+          },
+          modeScriptInfo,
+          modeScriptSettings
+        }, {
+          action: "server.mode-preset.apply",
+          success: true,
+          detail: {
+            presetId: preset.id,
+            label: preset.label,
+            scriptName: preset.scriptName,
+            matchSettings: preset.matchSettings,
+            restartAfterApply: preset.restartAfterApply
+          }
         });
       }
 
@@ -1202,6 +1280,8 @@ function formatAdminActionChatMessage(
       return "[ManiaControl] Updated mode script settings";
     case "server.mode-script-commands.send":
       return "[ManiaControl] Sent mode script commands";
+    case "server.mode-preset.apply":
+      return "[ManiaControl] Applied mode preset";
     case "server.chat.message":
       return null;
     case "server.chat.notice":
@@ -1258,6 +1338,8 @@ function summarizeAuditAction(action: string, detail?: Record<string, unknown>):
     case "server.chat.message":
     case "server.chat.notice":
       return message ? `Sent message: ${message}` : "Sent server message";
+    case "server.mode-preset.apply":
+      return typeof detail?.label === "string" ? `Applied mode preset: ${detail.label}` : "Applied mode preset";
     case "server.votes.call":
       return typeof detail?.command === "string" ? `Started vote: ${detail.command}` : "Started vote";
     case "elite.pause":

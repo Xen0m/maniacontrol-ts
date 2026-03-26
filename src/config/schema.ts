@@ -14,6 +14,16 @@ export const adminPrincipalConfigSchema = z.object({
   scopes: z.array(z.string().min(1)).default(["read"])
 });
 
+export const adminModePresetSchema = z.object({
+  id: z.string().min(1),
+  label: z.string().min(1),
+  description: z.string().min(1).optional(),
+  scriptName: z.string().min(1).optional(),
+  matchSettings: z.string().min(1).optional(),
+  modeSettings: z.record(z.string(), z.unknown()).optional(),
+  restartAfterApply: z.boolean().default(false)
+});
+
 export const appConfigSchema = z.object({
   server: z.object({
     host: z.string().min(1),
@@ -34,6 +44,7 @@ export const appConfigSchema = z.object({
     port: z.number().int().positive().default(3001),
     token: z.string().min(1).optional(),
     principals: z.array(adminPrincipalConfigSchema).default([]),
+    modePresets: z.array(adminModePresetSchema).default([]),
     auditPath: z.string().min(1).default("./data/admin-audit.jsonl"),
     activityPath: z.string().min(1).default("./data/admin-activity.jsonl"),
     localRecordsPath: z.string().min(1).default("./data/local-records.json"),
@@ -52,3 +63,4 @@ export const appConfigSchema = z.object({
 export type AppConfig = z.infer<typeof appConfigSchema>;
 export type PluginConfig = z.infer<typeof pluginConfigSchema>;
 export type AdminPrincipalConfig = z.infer<typeof adminPrincipalConfigSchema>;
+export type AdminModePresetConfig = z.infer<typeof adminModePresetSchema>;

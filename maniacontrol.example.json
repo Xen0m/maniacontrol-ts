@@ -48,6 +48,38 @@
         ]
       }
     ],
+    "modePresets": [
+      {
+        "id": "elite",
+        "label": "Elite",
+        "description": "Baseline Elite preset",
+        "matchSettings": "MatchSettings/elite-test.txt"
+      },
+      {
+        "id": "practice",
+        "label": "Practice",
+        "description": "Example practice preset using Elite script settings",
+        "scriptName": "ShootMania\\Elite.Script.txt",
+        "modeSettings": {
+          "S_PracticeMode": true
+        },
+        "restartAfterApply": true
+      },
+      {
+        "id": "duel-elite",
+        "label": "Duel Elite",
+        "description": "Adapt this preset to your Duel Elite script or matchsettings",
+        "scriptName": "ShootMania\\Elite.Script.txt",
+        "restartAfterApply": true
+      },
+      {
+        "id": "joust",
+        "label": "Joust",
+        "description": "Adapt this preset to the Joust script or matchsettings installed on your server",
+        "scriptName": "ShootMania\\Joust.Script.txt",
+        "restartAfterApply": true
+      }
+    ],
     "auditPath": "./data/admin-audit.jsonl",
     "activityPath": "./data/admin-activity.jsonl",
     "localRecordsPath": "./data/local-records.json",
