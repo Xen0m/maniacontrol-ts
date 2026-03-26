@@ -39,6 +39,7 @@
           "players.write",
           "maps.write",
           "elite.write",
+          "chat.write",
           "mode.write",
           "mx.write"
         ]

@@ -31,6 +31,7 @@ Typical scopes:
 - `players.write`
 - `maps.write`
 - `elite.write`
+- `chat.write`
 - `mode.write`
 - `mx.write`
 
@@ -141,6 +142,14 @@ Example body:
 }
 ```
 
+### `POST /server/maps/restart`
+
+Restarts the current map immediately.
+
+### `POST /server/maps/next`
+
+Advances immediately to the next scheduled map.
+
 ### `GET /elite/state`
 
 Returns the current ShootMania Elite state snapshot when the plugin is enabled.
@@ -182,6 +191,7 @@ Returns recent persisted admin actions from the audit log.
 - player actions require `players.write`
 - map actions require `maps.write`
 - Elite controls require `elite.write`
+- chat actions require `chat.write`
 - mode script edits require `mode.write`
 - SMX imports require `mx.write`
 
@@ -222,6 +232,23 @@ Missing scope returns:
 }
 ```
 
+### `POST /server/chat/message`
+
+```json
+{
+  "message": "Server restart in 2 minutes"
+}
+```
+
+### `POST /server/chat/notice`
+
+```json
+{
+  "message": "Warmup is live",
+  "variant": 2
+}
+```
+
 Current event types:
 
 - `system.connected`
@@ -233,6 +260,8 @@ Current event types:
 - `server.endMap`
 - `server.nextMapChanged`
 - `server.mapJumped`
+- `server.mapRestarted`
+- `server.nextMapTriggered`
 - `server.modeScriptSettingsChanged`
 - `server.modeScriptCommandsSent`
 - `server.playerConnect`
@@ -240,3 +269,5 @@ Current event types:
 - `server.playerKicked`
 - `server.playerTeamForced`
 - `server.playerSpectatorForced`
+- `server.chatMessageSent`
+- `server.noticeSent`

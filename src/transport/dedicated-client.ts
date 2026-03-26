@@ -225,6 +225,14 @@ export class DedicatedClient {
     await this.callBoolean("JumpToMapIdent", [uId]);
   }
 
+  public async nextMap(): Promise<void> {
+    await this.callBoolean("NextMap");
+  }
+
+  public async restartMap(): Promise<void> {
+    await this.callBoolean("RestartMap");
+  }
+
   public async getPlayerList(length = 100, offset = 0, compatibility = 1): Promise<DedicatedPlayerInfo[]> {
     const result = await this.transport.call("GetPlayerList", [length, offset, compatibility]);
     if (!Array.isArray(result)) {

@@ -332,6 +332,48 @@ export class AdminHttpServer {
         });
       }
 
+      if (method === "POST" && url.pathname === "/server/maps/restart") {
+        if (!this.hasScope(auth, "maps.write")) {
+          return await this.writeForbidden(response, auth, "maps.write");
+        }
+
+        await this.client.restartMap();
+        const currentMap = await this.client.getCurrentMapInfo();
+        this.sseHub.publish("server.mapRestarted", {
+          currentMap
+        });
+        return await this.writeJson(response, 200, currentMap, {
+          action: "server.maps.restart",
+          success: true,
+          detail: { currentMap: currentMap.fileName ?? currentMap.uId ?? currentMap.name ?? "unknown" }
+        });
+      }
+
+      if (method === "POST" && url.pathname === "/server/maps/next") {
+        if (!this.hasScope(auth, "maps.write")) {
+          return await this.writeForbidden(response, auth, "maps.write");
+        }
+
+        await this.client.nextMap();
+        const currentMap = await this.client.getCurrentMapInfo();
+        const nextMap = await this.client.getNextMapInfo().catch(() => undefined);
+        this.sseHub.publish("server.nextMapTriggered", {
+          currentMap,
+          nextMap
+        });
+        return await this.writeJson(response, 200, {
+          currentMap,
+          nextMap
+        }, {
+          action: "server.maps.next",
+          success: true,
+          detail: {
+            currentMap: currentMap.fileName ?? currentMap.uId ?? currentMap.name ?? "unknown",
+            nextMap: nextMap?.fileName ?? nextMap?.uId ?? nextMap?.name ?? undefined
+          }
+        });
+      }
+
       if (method === "POST" && url.pathname === "/server/players/kick") {
         if (!this.hasScope(auth, "players.write")) {
           return await this.writeForbidden(response, auth, "players.write");
@@ -389,6 +431,70 @@ export class AdminHttpServer {
           action: "server.players.force-spectator",
           success: true,
           detail: { login, mode }
+        });
+      }
+
+      if (method === "POST" && url.pathname === "/server/chat/message") {
+        if (!this.hasScope(auth, "chat.write")) {
+          return await this.writeForbidden(response, auth, "chat.write");
+        }
+        const body = await this.readJsonBody(request);
+        const message = typeof body.message === "string" ? body.message.trim() : "";
+        const recipients = Array.isArray(body.recipients)
+          ? body.recipients.filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+          : undefined;
+        if (!message) {
+          return await this.writeJson(response, 400, { error: "message is required" });
+        }
+
+        await this.client.chatSendServerMessage(message, recipients);
+        this.sseHub.publish("server.chatMessageSent", { message, recipients });
+        return await this.writeJson(response, 200, {
+          ok: true,
+          message,
+          recipients: recipients ?? []
+        }, {
+          action: "server.chat.message",
+          success: true,
+          detail: {
+            message,
+            recipientCount: recipients?.length ?? 0
+          }
+        });
+      }
+
+      if (method === "POST" && url.pathname === "/server/chat/notice") {
+        if (!this.hasScope(auth, "chat.write")) {
+          return await this.writeForbidden(response, auth, "chat.write");
+        }
+        const body = await this.readJsonBody(request);
+        const message = typeof body.message === "string" ? body.message.trim() : "";
+        const recipients = Array.isArray(body.recipients)
+          ? body.recipients.filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+          : undefined;
+        const avatarLogin = typeof body.avatarLogin === "string" ? body.avatarLogin.trim() : "";
+        const variant = typeof body.variant === "number" ? body.variant : Number(body.variant ?? 0);
+        if (!message) {
+          return await this.writeJson(response, 400, { error: "message is required" });
+        }
+
+        await this.client.sendNotice(message, recipients, avatarLogin || undefined, Number.isFinite(variant) ? variant : 0);
+        this.sseHub.publish("server.noticeSent", { message, recipients, avatarLogin, variant });
+        return await this.writeJson(response, 200, {
+          ok: true,
+          message,
+          recipients: recipients ?? [],
+          avatarLogin,
+          variant: Number.isFinite(variant) ? variant : 0
+        }, {
+          action: "server.chat.notice",
+          success: true,
+          detail: {
+            message,
+            recipientCount: recipients?.length ?? 0,
+            avatarLogin: avatarLogin || undefined,
+            variant: Number.isFinite(variant) ? variant : 0
+          }
         });
       }
 
@@ -695,6 +801,10 @@ function formatAdminActionChatMessage(
       return `[ManiaControl] Next map set to ${fileName ?? "unknown map"}`;
     case "server.maps.jump":
       return `[ManiaControl] Jumped to map ${uId ?? "unknown map"}`;
+    case "server.maps.restart":
+      return "[ManiaControl] Restarted current map";
+    case "server.maps.next":
+      return "[ManiaControl] Advanced to next map";
     case "server.players.kick":
       return login ? `[ManiaControl] Kicked ${login}` : "[ManiaControl] Player kicked";
     case "server.players.force-team":
@@ -725,6 +835,10 @@ function formatAdminActionChatMessage(
       return "[ManiaControl] Updated mode script settings";
     case "server.mode-script-commands.send":
       return "[ManiaControl] Sent mode script commands";
+    case "server.chat.message":
+      return null;
+    case "server.chat.notice":
+      return null;
     default:
       return null;
   }
@@ -741,6 +855,7 @@ function defaultScopesForRole(role: AdminRole): string[] {
       "maps.write",
       "elite.write",
       "mode.write",
+      "chat.write",
       "mx.write",
       "audit.read"
     ];
