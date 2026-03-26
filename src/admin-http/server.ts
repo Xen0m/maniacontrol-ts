@@ -109,6 +109,7 @@ export class AdminHttpServer {
         summary: "Map ended",
         payload: { params: sanitizeParams(event.params) }
       });
+      void this.captureRankingSnapshot("map-end");
     });
     this.callbacks.on("ManiaPlanet.PlayerConnect", (event) => {
       this.sseHub.publish("server.playerConnect", event);
@@ -255,6 +256,23 @@ export class AdminHttpServer {
           limit,
           count: maps.length,
           maps
+        });
+      }
+
+      if (method === "GET" && url.pathname === "/server/ranking/current") {
+        if (!this.hasScope(auth, "read")) {
+          return await this.writeForbidden(response, auth, "read");
+        }
+        const limit = clampInt(url.searchParams.get("limit"), 20, 1, 200);
+        const offset = clampInt(url.searchParams.get("offset"), 0, 0, 10_000);
+        const entries = await this.client.getCurrentRanking(limit, offset);
+        const winnerTeam = await this.client.getCurrentWinnerTeam().catch(() => undefined);
+        return await this.writeJson(response, 200, {
+          offset,
+          limit,
+          count: entries.length,
+          winnerTeam,
+          entries
         });
       }
 
@@ -1013,6 +1031,28 @@ export class AdminHttpServer {
       ...entry
     });
   }
+
+  private async captureRankingSnapshot(trigger: string): Promise<void> {
+    try {
+      const entries = await this.client.getCurrentRanking(10, 0);
+      const winnerTeam = await this.client.getCurrentWinnerTeam().catch(() => undefined);
+      if (entries.length === 0) {
+        return;
+      }
+      await this.appendActivity({
+        category: "ranking",
+        type: "server.ranking.snapshot",
+        summary: "Captured ranking snapshot",
+        payload: {
+          trigger,
+          winnerTeam,
+          entries
+        }
+      });
+    } catch (error) {
+      this.logger.debug({ error, trigger }, "failed to capture ranking snapshot");
+    }
+  }
 }
 
 function clampInt(value: string | null, fallback: number, min: number, max: number): number {
@@ -1122,6 +1162,7 @@ function formatAdminActionChatMessage(
 function classifyActivityCategory(action: string): string {
   if (action.startsWith("server.players.")) return "players";
   if (action.startsWith("server.maps.")) return "maps";
+  if (action.startsWith("server.ranking.")) return "ranking";
   if (action.startsWith("server.chat.")) return "chat";
   if (action.startsWith("server.votes.")) return "votes";
   if (action.startsWith("server.mode-script")) return "mode";
@@ -1157,6 +1198,8 @@ function summarizeAuditAction(action: string, detail?: Record<string, unknown>):
       return "Restarted current map";
     case "server.maps.next":
       return "Advanced to next map";
+    case "server.ranking.snapshot":
+      return "Captured ranking snapshot";
     case "server.chat.message":
     case "server.chat.notice":
       return message ? `Sent message: ${message}` : "Sent server message";

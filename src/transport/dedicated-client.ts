@@ -71,6 +71,17 @@ export interface DedicatedSimpleLoginEntry {
   ipAddress?: string;
 }
 
+export interface DedicatedRankingEntry {
+  login?: string;
+  nickName?: string;
+  playerId?: number;
+  rank?: number;
+  bestTime?: number;
+  score?: number;
+  nbrLapsFinished?: number;
+  ladderScore?: number;
+}
+
 export class DedicatedClient {
   private readonly transport: GbxRemoteClient;
   private readonly logger: Logger;
@@ -344,6 +355,33 @@ export class DedicatedClient {
         nickName: readString(item, "ClientName") ?? readString(item, "nickName"),
         ipAddress: readString(item, "IPAddress") ?? readString(item, "ipAddress")
       }));
+  }
+
+  public async getCurrentRanking(length = 100, offset = 0): Promise<DedicatedRankingEntry[]> {
+    const result = await this.transport.call("GetCurrentRanking", [length, offset]);
+    if (!Array.isArray(result)) {
+      throw new Error("GetCurrentRanking returned an unexpected payload");
+    }
+
+    return result
+      .filter((item): item is Record<string, XmlRpcValue> => {
+        return typeof item === "object" && item !== null && !Array.isArray(item);
+      })
+      .map((item) => ({
+        login: readString(item, "Login") ?? readString(item, "login"),
+        nickName: readString(item, "NickName") ?? readString(item, "nickName"),
+        playerId: readNumber(item, "PlayerId") ?? readNumber(item, "playerId"),
+        rank: readNumber(item, "Rank") ?? readNumber(item, "rank"),
+        bestTime: readNumber(item, "BestTime") ?? readNumber(item, "bestTime"),
+        score: readNumber(item, "Score") ?? readNumber(item, "score"),
+        nbrLapsFinished: readNumber(item, "NbrLapsFinished") ?? readNumber(item, "nbrLapsFinished"),
+        ladderScore: readNumber(item, "LadderScore") ?? readNumber(item, "ladderScore")
+      }));
+  }
+
+  public async getCurrentWinnerTeam(): Promise<number> {
+    const result = await this.transport.call("GetCurrentWinnerTeam");
+    return Number(result);
   }
 
   public async addMap(fileName: string): Promise<void> {

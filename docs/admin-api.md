@@ -96,6 +96,10 @@ Returns the currently scheduled next map when available.
 
 Returns a slice of the server map list.
 
+### `GET /server/ranking/current?limit=20&offset=0`
+
+Returns the current live ranking and winner team when available.
+
 ### `POST /server/maps/choose-next`
 
 Example body:
