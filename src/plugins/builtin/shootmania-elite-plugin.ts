@@ -5,7 +5,6 @@ const SHOOTMANIA_ELITE_TITLE = "SMStormElite@nadeolabs";
 const DEFAULT_HISTORY_LIMIT = 20;
 const STATE_CHANGED_EVENT = "Plugin.ShootManiaElite.StateChanged";
 const ELITE_WIDGET_ID = "maniacontrol-ts.elite.state";
-const ACTION_TOGGLE_WIDGET = "maniacontrol.ts.elite.toggle";
 
 interface EliteStartTurnPayload {
   attacker?: string;
@@ -85,7 +84,6 @@ export class ShootManiaElitePlugin implements ControllerPlugin {
     }
   };
   private readonly connectedPlayers = new Set<string>();
-  private readonly collapsedPlayers = new Set<string>();
 
   public async setup(context: PluginContext): Promise<void> {
     this.context = context;
@@ -138,22 +136,6 @@ export class ShootManiaElitePlugin implements ControllerPlugin {
       }
 
       this.connectedPlayers.delete(login);
-      this.collapsedPlayers.delete(login);
-    });
-
-    context.callbacks.on(`manialink-answer:${ACTION_TOGGLE_WIDGET}`, (event) => {
-      const login = "login" in event && typeof event.login === "string" ? event.login : undefined;
-      if (!login) {
-        return;
-      }
-
-      if (this.collapsedPlayers.has(login)) {
-        this.collapsedPlayers.delete(login);
-      } else {
-        this.collapsedPlayers.add(login);
-      }
-
-      void this.renderWidget([login]);
     });
 
     context.callbacks.on("Maniaplanet.Pause.Status", (event) => {
@@ -294,7 +276,7 @@ export class ShootManiaElitePlugin implements ControllerPlugin {
       return;
     }
 
-    const xml = renderEliteStateWidget(this.state, shouldRenderCollapsed(recipients, this.collapsedPlayers));
+    const xml = renderEliteStateWidget(this.state);
     if (recipients && recipients.length > 0) {
       this.context.logger.debug({ recipients }, "Rendering Elite widget to specific recipients");
     } else {
@@ -384,7 +366,7 @@ function formatTurnEndMessage(turnNumber: number, victoryLabel: string | undefin
   return `$fffElite turn $ff0#${turnNumber}$fff ended.`;
 }
 
-function renderEliteStateWidget(state: EliteStateSnapshot, collapsed = false): string {
+function renderEliteStateWidget(state: EliteStateSnapshot): string {
   const lastTurn = state.lastCompletedTurn;
   const currentTurn = state.currentTurn;
   const summaryLines = [
@@ -402,15 +384,15 @@ function renderEliteStateWidget(state: EliteStateSnapshot, collapsed = false): s
     manialink(ELITE_WIDGET_ID, [
       frame(
         {
-          posn: "140 74 1"
+          posn: "140 85 5"
         },
-        collapsed ? renderCollapsedEliteWidget() : renderExpandedEliteWidget(summaryLines, state)
+        renderEliteStatusWidget(summaryLines, state)
       )
     ])
   );
 }
 
-function renderExpandedEliteWidget(
+function renderEliteStatusWidget(
   lines: Array<{ labelText: string; valueText: string }>,
   state: EliteStateSnapshot
 ): Array<ReturnType<typeof quad> | ReturnType<typeof label>> {
@@ -418,116 +400,55 @@ function renderExpandedEliteWidget(
   return [
     quad({
       posn: "0 0 0",
-      sizen: "34 12",
+      sizen: "40 9.5",
       halign: "right",
       valign: "top",
       style: "Bgs1InRace",
       substyle: "BgTitleShadow"
     }),
     label({
-      posn: "-31 -1.2 2",
-      sizen: "26 2.5",
+      posn: "-36 -1 2",
+      sizen: "20 2",
       halign: "left",
       style: "TextTitle1",
       textcolor: "fff",
-      textsize: 1,
+      textsize: 0.95,
       textemboss: "1",
       text: "Elite"
     }),
-    quad({
-      posn: "-4 -1.2 2",
-      sizen: "2.5 2.2",
-      style: "Bgs1InRace",
-      substyle: "BgCard1",
-      action: ACTION_TOGGLE_WIDGET
-    }),
-    label({
-      posn: "-3.5 -1.38 3",
-      sizen: "2 2",
-      textcolor: "fff",
-      textsize: 0.8,
-      textemboss: "1",
-      text: "$fff–",
-      action: ACTION_TOGGLE_WIDGET
-    }),
     ...compactLines.flatMap((line, index) => {
-      const rowY = -3.8 - index * 2.1;
+      const rowY = -2.7 - index * 1.55;
       return [
         label({
-          posn: "-31 " + rowY + " 2",
-          sizen: "8 2",
+          posn: "-36 " + rowY + " 2",
+          sizen: "8 1.5",
           halign: "left",
           textcolor: "ddd",
-          textsize: 0.75,
+          textsize: 0.62,
           textemboss: "1",
-          text: line.labelText
+          text: stripColorCodes(line.labelText)
         }),
         label({
-          posn: "-21 " + rowY + " 2",
-          sizen: "18 2",
+          posn: "-26.5 " + rowY + " 2",
+          sizen: "22 1.5",
           halign: "left",
           textcolor: "fff",
-          textsize: 0.78,
+          textsize: 0.65,
           textemboss: "1",
           text: truncate(stripColorCodes(line.valueText), 18)
         })
       ];
     }),
     label({
-      posn: "-31 -11.1 2",
-      sizen: "28 2",
+      posn: "-36 -8.5 2",
+      sizen: "32 1.5",
       halign: "left",
       textcolor: "fff",
-      textsize: 0.75,
+      textsize: 0.65,
       textemboss: "1",
       text: `$0f0A ${state.stats.attackerWins}$fff / $f33D ${state.stats.defenderWins}$fff`
     })
   ];
-}
-
-function renderCollapsedEliteWidget(): Array<ReturnType<typeof quad> | ReturnType<typeof label>> {
-  return [
-    quad({
-      posn: "0 0 0",
-      sizen: "12 3.4",
-      halign: "right",
-      valign: "top",
-      style: "Bgs1InRace",
-      substyle: "BgTitleShadow",
-      action: ACTION_TOGGLE_WIDGET
-    }),
-    label({
-      posn: "-10 -1.1 2",
-      sizen: "8 2",
-      halign: "left",
-      style: "TextTitle1",
-      textcolor: "fff",
-      textsize: 0.75,
-      textemboss: "1",
-      text: "Elite",
-      action: ACTION_TOGGLE_WIDGET
-    }),
-    label({
-      posn: "-2.4 -1.08 2",
-      sizen: "3 2",
-      textcolor: "fff",
-      textsize: 0.8,
-      textemboss: "1",
-      text: "$fff+",
-      action: ACTION_TOGGLE_WIDGET
-    })
-  ];
-}
-
-function shouldRenderCollapsed(
-  recipients: string[] | undefined,
-  collapsedPlayers: ReadonlySet<string>
-): boolean {
-  if (!recipients || recipients.length === 0) {
-    return false;
-  }
-
-  return collapsedPlayers.has(recipients[0]);
 }
 
 function truncate(value: string, maxLength: number): string {
