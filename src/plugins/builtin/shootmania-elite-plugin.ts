@@ -1,6 +1,7 @@
 import type { ControllerPlugin, PluginContext } from "../plugin.js";
-import { manialink, renderManialink } from "../../ui/manialink.js";
-import { buildStatusWidget } from "../../ui/maniacontrol-layout.js";
+import { label, manialink, renderManialink } from "../../ui/manialink.js";
+import { MANIACONTROL_STYLES, WINDOW_DEFAULTS } from "../../ui/maniacontrol-style.js";
+import { buildStatusWindow } from "../../ui/window-manager.js";
 
 const SHOOTMANIA_ELITE_TITLE = "SMStormElite@nadeolabs";
 const DEFAULT_HISTORY_LIMIT = 20;
@@ -370,28 +371,59 @@ function formatTurnEndMessage(turnNumber: number, victoryLabel: string | undefin
 function renderEliteStateWidget(state: EliteStateSnapshot): string {
   const lastTurn = state.lastCompletedTurn;
   const currentTurn = state.currentTurn;
-  const summaryLines = [
-    { labelText: "$999Pause", valueText: formatPauseState(state.paused, state.pauseSupported) },
-    { labelText: "$999Turn", valueText: `$fff${currentTurn?.number ?? state.turnNumber}` },
-    { labelText: "$999Attacker", valueText: `$fff${currentTurn?.attacker ?? lastTurn?.attacker ?? "-"}` },
+  const summaryRows = [
+    { label: "Pause", value: stripColorCodes(formatPauseState(state.paused, state.pauseSupported)) },
+    { label: "Turn", value: String(currentTurn?.number ?? state.turnNumber) },
+    { label: "Attacker", value: stripColorCodes(`${currentTurn?.attacker ?? lastTurn?.attacker ?? "-"}`) },
     {
-      labelText: "$999Defenders",
-      valueText: `$fff${truncate((currentTurn?.defenders ?? lastTurn?.defenders ?? []).join(", ") || "-", 24)}`
-    },
-    { labelText: "$999Last", valueText: `$fff${lastTurn?.victoryLabel ?? "-"}` }
+      label: "Defenders",
+      value: truncate(stripColorCodes((currentTurn?.defenders ?? lastTurn?.defenders ?? []).join(", ") || "-"), 24)
+    }
   ];
+  const footer = `$0f0A ${state.stats.attackerWins}$fff / $f33D ${state.stats.defenderWins}$fff`;
 
   return renderManialink(
     manialink(ELITE_WIDGET_ID, [
-      buildStatusWidget(
+      buildStatusWindow(
         "Elite",
-        summaryLines.slice(0, 4).map((line) => ({
-          label: stripColorCodes(line.labelText),
-          value: truncate(stripColorCodes(line.valueText), 24)
-        })),
-        `$0f0A ${state.stats.attackerWins}$fff / $f33D ${state.stats.defenderWins}$fff`,
-        "132 76 5",
-        "48 12.5"
+        [
+          ...summaryRows.flatMap((row, index) => {
+            const rowY = -3.3 - index * 2.2;
+            return [
+              label({
+                posn: `-43 ${rowY} 2`,
+                sizen: "10 2",
+                halign: "left",
+                textcolor: MANIACONTROL_STYLES.secondaryTextColor,
+                textsize: "0.8",
+                textemboss: "1",
+                text: row.label
+              }),
+              label({
+                posn: `-31 ${rowY} 2`,
+                sizen: "26 2",
+                halign: "left",
+                textcolor: MANIACONTROL_STYLES.primaryTextColor,
+                textsize: "0.82",
+                textemboss: "1",
+                text: row.value
+              })
+            ];
+          }),
+          label({
+            posn: "-43 -11.2 2",
+            sizen: "38 2",
+            halign: "left",
+            textcolor: MANIACONTROL_STYLES.primaryTextColor,
+            textsize: "0.78",
+            textemboss: "1",
+            text: footer
+          })
+        ],
+        {
+          posn: WINDOW_DEFAULTS.status.posn,
+          size: WINDOW_DEFAULTS.status.size
+        }
       )
     ])
   );
