@@ -402,7 +402,7 @@ function renderEliteStateWidget(state: EliteStateSnapshot, collapsed = false): s
     manialink(ELITE_WIDGET_ID, [
       frame(
         {
-          posn: "118 58 1"
+          posn: "116 50 1"
         },
         collapsed ? renderCollapsedEliteWidget() : renderExpandedEliteWidget(summaryLines, state)
       )
@@ -420,19 +420,19 @@ function renderExpandedEliteWidget(
       sizen: "46 26",
       halign: "right",
       valign: "top",
-      bgcolor: "00131eee"
+      bgcolor: "000c"
     }),
     quad({
       posn: "0 0 1",
       sizen: "46 3.6",
       halign: "right",
       valign: "top",
-      bgcolor: "0b6ca4ff"
+      bgcolor: "08bf"
     }),
     quad({
       posn: "-42.8 -0.65 2",
       sizen: "3.2 2.2",
-      bgcolor: "ffffff33"
+      bgcolor: "fff3"
     }),
     label({
       posn: "-37.5 -1.05 2",
@@ -480,7 +480,7 @@ function renderExpandedEliteWidget(
     quad({
       posn: "-42 -24.1 1",
       sizen: "38 2.8",
-      bgcolor: "ffffff16"
+      bgcolor: "fff2"
     }),
     label({
       posn: "-40.5 -24.65 2",
@@ -500,7 +500,7 @@ function renderCollapsedEliteWidget(): Array<ReturnType<typeof quad> | ReturnTyp
       sizen: "16 3.8",
       halign: "right",
       valign: "top",
-      bgcolor: "00131eee",
+      bgcolor: "000c",
       action: ACTION_TOGGLE_WIDGET
     }),
     quad({
@@ -508,7 +508,7 @@ function renderCollapsedEliteWidget(): Array<ReturnType<typeof quad> | ReturnTyp
       sizen: "16 0.8",
       halign: "right",
       valign: "top",
-      bgcolor: "0b6ca4ff",
+      bgcolor: "08bf",
       action: ACTION_TOGGLE_WIDGET
     }),
     label({

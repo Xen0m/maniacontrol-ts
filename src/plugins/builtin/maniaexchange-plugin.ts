@@ -251,7 +251,7 @@ export class ManiaExchangePlugin implements ControllerPlugin {
       manialink(MX_WIDGET_ID, [
         frame(
           {
-            posn: "-154 68 1"
+            posn: "-154 56 1"
           },
           renderLauncherContent(shouldRenderCollapsedLauncher(recipients, this.collapsedLaunchers))
         )
@@ -352,7 +352,7 @@ function renderSmxPanel(state: PlayerMxState): string {
       quad({
         posn: "28 " + (rowY - 0.1) + " 2",
         sizen: "11 3.2",
-        bgcolor: "1f9bcedd",
+        bgcolor: "28bc",
         action: `${ACTION_IMPORT_PREFIX}${result.mapId}`
       }),
       label({
@@ -370,17 +370,17 @@ function renderSmxPanel(state: PlayerMxState): string {
     manialink(MX_PANEL_ID, [
       frame(
         {
-          posn: "-148 48 1"
+          posn: "-148 34 1"
         },
         [
           quad({
             sizen: "90 38",
-            bgcolor: "06111af2"
+            bgcolor: "000c"
           }),
           quad({
             posn: "0 0 1",
             sizen: "90 4.2",
-            bgcolor: "0b6ca4ff"
+            bgcolor: "08bf"
           }),
           label({
             posn: "-42 -0.9 2",
@@ -391,7 +391,7 @@ function renderSmxPanel(state: PlayerMxState): string {
           quad({
             posn: "33 -0.6 2",
             sizen: "5.5 2.6",
-            bgcolor: "0008",
+            bgcolor: "000a",
             action: ACTION_TOGGLE_LAUNCHER
           }),
           label({
@@ -431,7 +431,7 @@ function renderSmxPanel(state: PlayerMxState): string {
           quad({
             posn: "14 -10.3 2",
             sizen: "10 3.6",
-            bgcolor: "1f9bcedd",
+            bgcolor: "28bc",
             action: ACTION_SEARCH
           }),
           label({
@@ -465,13 +465,13 @@ function renderLauncherContent(
     return [
       quad({
         sizen: "12 3.6",
-        bgcolor: "06111af2",
+        bgcolor: "000c",
         action: ACTION_TOGGLE_LAUNCHER
       }),
       quad({
         posn: "0 0 1",
         sizen: "12 0.8",
-        bgcolor: "0b6ca4ff",
+        bgcolor: "08bf",
         action: ACTION_TOGGLE_LAUNCHER
       }),
       label({
@@ -496,12 +496,12 @@ function renderLauncherContent(
   return [
     quad({
       sizen: "28 5",
-      bgcolor: "06111af2"
+      bgcolor: "000c"
     }),
     quad({
       posn: "0 0 1",
       sizen: "28 0.9",
-      bgcolor: "0b6ca4ff"
+      bgcolor: "08bf"
     }),
     label({
       posn: "1.6 -0.95 2",
@@ -514,7 +514,7 @@ function renderLauncherContent(
     quad({
       posn: "18.3 -0.8 2",
       sizen: "5.6 2.8",
-      bgcolor: "1f9bcedd",
+      bgcolor: "28bc",
       action: ACTION_OPEN_PANEL
     }),
     label({
