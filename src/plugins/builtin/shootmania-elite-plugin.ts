@@ -56,6 +56,8 @@ interface EliteStateSnapshot {
   };
 }
 
+export type { EliteStateSnapshot };
+
 export class ShootManiaElitePlugin implements ControllerPlugin {
   public readonly id = "shootmania-elite";
 
@@ -315,6 +317,40 @@ export class ShootManiaElitePlugin implements ControllerPlugin {
     if (this.settings.showWidget) {
       await this.context?.ui.clearWidget(ELITE_WIDGET_ID);
     }
+  }
+
+  public getStateSnapshot(): EliteStateSnapshot {
+    return structuredClone(this.state);
+  }
+
+  public async pauseMatch(): Promise<EliteStateSnapshot> {
+    if (!this.context) {
+      throw new Error("ShootMania Elite plugin is not initialized.");
+    }
+    if (!this.state.pauseSupported) {
+      throw new Error("Pause is not supported by the current mode.");
+    }
+
+    await this.context.client.setPauseActive(true);
+    this.state.paused = true;
+    this.emitStateChanged("pause-status");
+    await this.renderWidgetForActivePlayers();
+    return this.getStateSnapshot();
+  }
+
+  public async resumeMatch(): Promise<EliteStateSnapshot> {
+    if (!this.context) {
+      throw new Error("ShootMania Elite plugin is not initialized.");
+    }
+    if (!this.state.pauseSupported) {
+      throw new Error("Pause is not supported by the current mode.");
+    }
+
+    await this.context.client.setPauseActive(false);
+    this.state.paused = false;
+    this.emitStateChanged("pause-status");
+    await this.renderWidgetForActivePlayers();
+    return this.getStateSnapshot();
   }
 
   private async renderWidget(recipients?: string[]): Promise<void> {

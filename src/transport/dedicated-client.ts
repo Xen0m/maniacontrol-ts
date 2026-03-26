@@ -115,6 +115,33 @@ export class DedicatedClient {
     };
   }
 
+  public async getCurrentMapInfo(): Promise<DedicatedMapInfo> {
+    try {
+      const result = await this.callStruct("GetCurrentMapInfo");
+      return {
+        name: readString(result, "name"),
+        uId: readString(result, "uId"),
+        fileName: readString(result, "fileName"),
+        author: readString(result, "author"),
+        environment: readString(result, "environment"),
+        mapType: readString(result, "mapType"),
+        mapStyle: readString(result, "mapStyle")
+      };
+    } catch (error) {
+      this.logger.debug({ error }, "GetCurrentMapInfo failed, trying legacy fallback");
+      const result = await this.callStruct("GetCurrentChallengeInfo");
+      return {
+        name: readString(result, "name"),
+        uId: readString(result, "uId"),
+        fileName: readString(result, "fileName"),
+        author: readString(result, "author"),
+        environment: readString(result, "environment"),
+        mapType: readString(result, "mapType"),
+        mapStyle: readString(result, "mapStyle")
+      };
+    }
+  }
+
   public async addMap(fileName: string): Promise<void> {
     await this.callBoolean("AddMap", [fileName]);
   }

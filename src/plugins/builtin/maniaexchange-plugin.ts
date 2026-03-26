@@ -6,6 +6,7 @@ import { buildMainWindow } from "../../ui/window-manager.js";
 import type { ControllerPlugin, PluginContext } from "../plugin.js";
 import { MapImportService } from "../../maps/map-import-service.js";
 import type { SmxMapSummary } from "../../integrations/mania-exchange/smx-client.js";
+import type { ImportedMapResult } from "../../maps/map-import-service.js";
 
 interface ManiaExchangePluginSettings {
   mapsDirectory: string;
@@ -152,6 +153,33 @@ export class ManiaExchangePlugin implements ControllerPlugin {
   public async stop(): Promise<void> {
     await this.context?.ui.clearWidget(MX_WIDGET_ID);
     await this.context?.ui.clearWidget(MX_PANEL_ID);
+  }
+
+  public getSettingsSnapshot(): ManiaExchangePluginSettings {
+    return { ...this.settings };
+  }
+
+  public async searchMaps(query: string): Promise<SmxMapSummary[]> {
+    if (!this.context) {
+      throw new Error("ManiaExchange plugin is not initialized.");
+    }
+
+    const importer = new MapImportService(this.context.client, this.context.logger);
+    const normalizedQuery = query.trim() || this.settings.defaultQuery;
+    return importer.searchMaps(normalizedQuery, this.settings.searchLimit);
+  }
+
+  public async importMapById(mapId: number): Promise<ImportedMapResult> {
+    if (!this.context) {
+      throw new Error("ManiaExchange plugin is not initialized.");
+    }
+
+    const importer = new MapImportService(this.context.client, this.context.logger);
+    return importer.importMapById(mapId, {
+      mapsDirectory: this.settings.mapsDirectory,
+      targetRelativeDirectory: this.settings.targetRelativeDirectory,
+      insertMode: this.settings.insertMode
+    });
   }
 
   private async handleManialinkAnswer(event: PlayerManialinkPageAnswerEvent): Promise<void> {
