@@ -18,6 +18,12 @@ interface ControllerSnapshot {
   systemInfo?: DedicatedSystemInfo;
 }
 
+interface AdminAuditContext {
+  action: string;
+  success: boolean;
+  detail?: Record<string, unknown>;
+}
+
 interface AdminHttpServerOptions {
   config: NonNullable<AppConfig["admin"]>;
   logger: Logger;
@@ -465,7 +471,7 @@ export class AdminHttpServer {
     response: ServerResponse,
     statusCode: number,
     body: unknown,
-    audit?: { action: string; success: boolean; detail?: Record<string, unknown> }
+    audit?: AdminAuditContext
   ): Promise<void> {
     if (audit) {
       await this.auditLog.append({
@@ -477,11 +483,37 @@ export class AdminHttpServer {
         success: audit.success,
         detail: audit.detail
       });
+      await this.maybeLogActionToChat(response, audit);
     }
     response.writeHead(statusCode, {
       "Content-Type": "application/json; charset=utf-8"
     });
     response.end(JSON.stringify(body, null, 2));
+  }
+
+  private async maybeLogActionToChat(
+    response: ServerResponse,
+    audit: AdminAuditContext
+  ): Promise<void> {
+    if (!this.config.chatLoggingEnabled || !audit.success) {
+      return;
+    }
+
+    const method = response.req?.method ?? "";
+    if (!["POST", "PUT", "PATCH", "DELETE"].includes(method)) {
+      return;
+    }
+
+    const message = formatAdminActionChatMessage(audit.action, audit.detail);
+    if (!message) {
+      return;
+    }
+
+    try {
+      await this.client.chatSendServerMessage(message);
+    } catch (error) {
+      this.logger.warn({ error, action: audit.action }, "failed to send admin action chat log");
+    }
   }
 }
 
@@ -516,6 +548,57 @@ function isXmlRpcValue(value: unknown): value is XmlRpcValue {
   }
 
   return false;
+}
+
+function formatAdminActionChatMessage(
+  action: string,
+  detail?: Record<string, unknown>
+): string | null {
+  const login = typeof detail?.login === "string" ? detail.login : null;
+  const team = typeof detail?.team === "number" ? detail.team : null;
+  const mode = typeof detail?.mode === "number" ? detail.mode : null;
+  const fileName = typeof detail?.fileName === "string" ? detail.fileName : null;
+  const uId = typeof detail?.uId === "string" ? detail.uId : null;
+  const mapId = typeof detail?.mapId === "number" ? detail.mapId : null;
+
+  switch (action) {
+    case "server.maps.choose-next":
+      return `[ManiaControl] Next map set to ${fileName ?? "unknown map"}`;
+    case "server.maps.jump":
+      return `[ManiaControl] Jumped to map ${uId ?? "unknown map"}`;
+    case "server.players.kick":
+      return login ? `[ManiaControl] Kicked ${login}` : "[ManiaControl] Player kicked";
+    case "server.players.force-team":
+      if (!login || team === null) {
+        return "[ManiaControl] Team assignment updated";
+      }
+      return `[ManiaControl] Moved ${login} to Team ${team + 1}`;
+    case "server.players.force-spectator":
+      if (!login || mode === null) {
+        return "[ManiaControl] Spectator state updated";
+      }
+      if (mode === 1 || mode === 3) {
+        return `[ManiaControl] Moved ${login} to spectator`;
+      }
+      if (mode === 2) {
+        return `[ManiaControl] Restored ${login} as player`;
+      }
+      return `[ManiaControl] Updated spectator state for ${login}`;
+    case "elite.pause":
+      return "[ManiaControl] Match paused";
+    case "elite.resume":
+      return "[ManiaControl] Match resumed";
+    case "mx.import":
+      return mapId !== null
+        ? `[ManiaControl] Imported SMX map ${mapId}`
+        : "[ManiaControl] Imported SMX map";
+    case "server.mode-script-settings.update":
+      return "[ManiaControl] Updated mode script settings";
+    case "server.mode-script-commands.send":
+      return "[ManiaControl] Sent mode script commands";
+    default:
+      return null;
+  }
 }
 
 function isXmlRpcStruct(value: unknown): value is Record<string, XmlRpcValue> {

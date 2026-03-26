@@ -25,7 +25,8 @@ export const appConfigSchema = z.object({
     host: z.string().min(1).default("127.0.0.1"),
     port: z.number().int().positive().default(3001),
     token: z.string().min(1),
-    auditPath: z.string().min(1).default("./data/admin-audit.jsonl")
+    auditPath: z.string().min(1).default("./data/admin-audit.jsonl"),
+    chatLoggingEnabled: z.boolean().default(false)
   }).optional(),
   storage: z.object({
     driver: z.enum(["sqlite", "postgres"]).default("sqlite"),

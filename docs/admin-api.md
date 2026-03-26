@@ -2,6 +2,19 @@
 
 Private HTTP API intended for `maniacontrol-companion`.
 
+## Config
+
+`admin` supports:
+
+- `enabled`
+- `host`
+- `port`
+- `token`
+- `auditPath`
+- `chatLoggingEnabled`
+
+When `chatLoggingEnabled` is `true`, successful write actions are also announced in the dedicated server chat.
+
 ## Auth
 
 All endpoints require:
