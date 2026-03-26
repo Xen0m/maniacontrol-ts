@@ -72,3 +72,8 @@ The rewrite keeps the official dedicated-server control model:
 - plugin package loading from disk
 - admin HTTP API or CLI
 - integration tests against a real dedicated server
+- separate stats web surface and read-model API
+
+See also:
+
+- `docs/stats-web-architecture.md`
