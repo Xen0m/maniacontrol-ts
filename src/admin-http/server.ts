@@ -11,6 +11,7 @@ import { ManiaExchangePlugin } from "../plugins/builtin/maniaexchange-plugin.js"
 import { ShootManiaElitePlugin } from "../plugins/builtin/shootmania-elite-plugin.js";
 import { SseHub } from "./sse-hub.js";
 import { AdminAuditLog } from "./audit-log.js";
+import { AdminActivityLog } from "./activity-log.js";
 
 type AdminRole = "owner" | "operator" | "observer";
 
@@ -57,6 +58,7 @@ export class AdminHttpServer {
   private readonly getManiaExchangePlugin: () => ManiaExchangePlugin | undefined;
   private readonly sseHub = new SseHub();
   private readonly auditLog: AdminAuditLog;
+  private readonly activityLog: AdminActivityLog;
   private server?: Server;
 
   public constructor(options: AdminHttpServerOptions) {
@@ -68,6 +70,7 @@ export class AdminHttpServer {
     this.getElitePlugin = options.getElitePlugin;
     this.getManiaExchangePlugin = options.getManiaExchangePlugin;
     this.auditLog = new AdminAuditLog(this.config.auditPath);
+    this.activityLog = new AdminActivityLog(this.config.activityPath);
   }
 
   public async start(): Promise<void> {
@@ -82,18 +85,52 @@ export class AdminHttpServer {
 
     this.callbacks.on("Plugin.ShootManiaElite.StateChanged", (event) => {
       this.sseHub.publish("elite.stateChanged", event);
+      void this.appendActivity({
+        category: "elite",
+        type: "elite.stateChanged",
+        summary: "Elite state updated",
+        payload: { reason: readReasonFromEvent(event) }
+      });
     });
     this.callbacks.on("ManiaPlanet.BeginMap", (event) => {
       this.sseHub.publish("server.beginMap", event);
+      void this.appendActivity({
+        category: "maps",
+        type: "server.beginMap",
+        summary: "Map started",
+        payload: { params: sanitizeParams(event.params) }
+      });
     });
     this.callbacks.on("ManiaPlanet.EndMap", (event) => {
       this.sseHub.publish("server.endMap", event);
+      void this.appendActivity({
+        category: "maps",
+        type: "server.endMap",
+        summary: "Map ended",
+        payload: { params: sanitizeParams(event.params) }
+      });
     });
     this.callbacks.on("ManiaPlanet.PlayerConnect", (event) => {
       this.sseHub.publish("server.playerConnect", event);
+      const login = typeof event.params[0] === "string" ? event.params[0] : undefined;
+      void this.appendActivity({
+        category: "players",
+        type: "server.playerConnect",
+        summary: login ? `${login} connected` : "Player connected",
+        login,
+        payload: { params: sanitizeParams(event.params) }
+      });
     });
     this.callbacks.on("ManiaPlanet.PlayerDisconnect", (event) => {
       this.sseHub.publish("server.playerDisconnect", event);
+      const login = typeof event.params[0] === "string" ? event.params[0] : undefined;
+      void this.appendActivity({
+        category: "players",
+        type: "server.playerDisconnect",
+        summary: login ? `${login} disconnected` : "Player disconnected",
+        login,
+        payload: { params: sanitizeParams(event.params) }
+      });
     });
 
     await new Promise<void>((resolve, reject) => {
@@ -724,6 +761,20 @@ export class AdminHttpServer {
         });
       }
 
+      if (method === "GET" && url.pathname === "/admin/activity") {
+        if (!this.hasScope(auth, "audit.read")) {
+          return await this.writeForbidden(response, auth, "audit.read");
+        }
+        const limit = clampInt(url.searchParams.get("limit"), 100, 1, 500);
+        const category = url.searchParams.get("category")?.trim() || undefined;
+        const login = url.searchParams.get("login")?.trim() || undefined;
+        const entries = await this.activityLog.readRecent({ limit, category, login });
+        return await this.writeJson(response, 200, {
+          count: entries.length,
+          entries
+        });
+      }
+
       if (method === "GET" && url.pathname === "/events") {
         if (!this.hasScope(auth, "read")) {
           return await this.writeForbidden(response, auth, "read");
@@ -846,6 +897,7 @@ export class AdminHttpServer {
         detail: audit.detail
       });
       await this.maybeLogActionToChat(response, audit);
+      await this.appendActivityFromAudit(response, audit);
     }
     response.writeHead(statusCode, {
       "Content-Type": "application/json; charset=utf-8"
@@ -876,6 +928,37 @@ export class AdminHttpServer {
     } catch (error) {
       this.logger.warn({ error, action: audit.action }, "failed to send admin action chat log");
     }
+  }
+
+  private async appendActivityFromAudit(
+    response: ServerResponse,
+    audit: AdminAuditContext
+  ): Promise<void> {
+    const auth = (response.req as AuthorizedIncomingMessage | undefined)?.adminAuth;
+    await this.appendActivity({
+      category: classifyActivityCategory(audit.action),
+      type: audit.action,
+      summary: summarizeAuditAction(audit.action, audit.detail),
+      login: typeof audit.detail?.login === "string" ? audit.detail.login : undefined,
+      actorId: auth?.id,
+      actorRole: auth?.role,
+      payload: audit.detail
+    });
+  }
+
+  private async appendActivity(entry: {
+    category: string;
+    type: string;
+    summary: string;
+    login?: string;
+    actorId?: string;
+    actorRole?: string;
+    payload?: Record<string, unknown>;
+  }): Promise<void> {
+    await this.activityLog.append({
+      timestamp: new Date().toISOString(),
+      ...entry
+    });
   }
 }
 
@@ -979,6 +1062,89 @@ function formatAdminActionChatMessage(
     default:
       return null;
   }
+}
+
+function classifyActivityCategory(action: string): string {
+  if (action.startsWith("server.players.")) return "players";
+  if (action.startsWith("server.maps.")) return "maps";
+  if (action.startsWith("server.chat.")) return "chat";
+  if (action.startsWith("server.mode-script")) return "mode";
+  if (action.startsWith("elite.")) return "elite";
+  if (action.startsWith("mx.")) return "smx";
+  if (action.startsWith("error:")) return "errors";
+  return "system";
+}
+
+function summarizeAuditAction(action: string, detail?: Record<string, unknown>): string {
+  const login = typeof detail?.login === "string" ? detail.login : undefined;
+  const fileName = typeof detail?.fileName === "string" ? detail.fileName : undefined;
+  const message = typeof detail?.message === "string" ? detail.message : undefined;
+
+  switch (action) {
+    case "server.players.kick":
+      return login ? `Kicked ${login}` : "Player kicked";
+    case "server.players.ban":
+      return login ? `Banned ${login}` : "Player banned";
+    case "server.players.ban-and-blacklist":
+      return login ? `Banned and blacklisted ${login}` : "Player banned and blacklisted";
+    case "server.players.unban":
+      return login ? `Unbanned ${login}` : "Player unbanned";
+    case "server.players.blacklist":
+      return login ? `Blacklisted ${login}` : "Player blacklisted";
+    case "server.players.unblacklist":
+      return login ? `Removed ${login} from blacklist` : "Player removed from blacklist";
+    case "server.maps.choose-next":
+      return fileName ? `Queued ${fileName} as next map` : "Updated next map";
+    case "server.maps.jump":
+      return "Jumped to map";
+    case "server.maps.restart":
+      return "Restarted current map";
+    case "server.maps.next":
+      return "Advanced to next map";
+    case "server.chat.message":
+    case "server.chat.notice":
+      return message ? `Sent message: ${message}` : "Sent server message";
+    case "elite.pause":
+      return "Paused match";
+    case "elite.resume":
+      return "Resumed match";
+    case "mx.import":
+      return "Imported SMX map";
+    default:
+      return action;
+  }
+}
+
+function sanitizeParams(params: unknown[]): Record<string, unknown> {
+  return { params: params.map((value) => sanitizeValue(value)) };
+}
+
+function sanitizeValue(value: unknown): unknown {
+  if (
+    value === null ||
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  ) {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeValue(item));
+  }
+  if (typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>).slice(0, 20);
+    return Object.fromEntries(entries.map(([key, item]) => [key, sanitizeValue(item)]));
+  }
+  return String(value);
+}
+
+function readReasonFromEvent(event: { params?: unknown[] }): string | undefined {
+  const payload = event.params?.[1];
+  if (payload && typeof payload === "object" && !Array.isArray(payload)) {
+    const reason = (payload as Record<string, unknown>).reason;
+    return typeof reason === "string" ? reason : undefined;
+  }
+  return undefined;
 }
 
 function defaultScopesForRole(role: AdminRole): string[] {

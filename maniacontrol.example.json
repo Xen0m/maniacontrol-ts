@@ -48,6 +48,7 @@
       }
     ],
     "auditPath": "./data/admin-audit.jsonl",
+    "activityPath": "./data/admin-activity.jsonl",
     "chatLoggingEnabled": false
   },
   "storage": {

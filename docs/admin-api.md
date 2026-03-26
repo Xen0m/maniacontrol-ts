@@ -12,6 +12,7 @@ Private HTTP API intended for `maniacontrol-companion`.
 - `token`
 - `principals`
 - `auditPath`
+- `activityPath`
 - `chatLoggingEnabled`
 
 When `chatLoggingEnabled` is `true`, successful write actions are also announced in the dedicated server chat.
@@ -193,6 +194,10 @@ SSE stream for companion realtime updates.
 ### `GET /admin/audit?limit=100`
 
 Returns recent persisted admin actions from the audit log.
+
+### `GET /admin/activity?limit=100&category=players&login=example`
+
+Returns recent persisted domain activity entries.
 
 ## Authorization model
 
