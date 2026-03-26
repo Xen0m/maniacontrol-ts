@@ -43,6 +43,7 @@ interface PlayerMxState {
   query: string;
   results: SmxMapSummary[];
   busy: boolean;
+  panelOpen: boolean;
   error?: string;
 }
 
@@ -164,6 +165,8 @@ export class ManiaExchangePlugin implements ControllerPlugin {
     }
 
     if (event.answer === ACTION_CLOSE_PANEL) {
+      const state = this.getPlayerState(event.login);
+      state.panelOpen = false;
       await this.context.ui.clearWidget(MX_PANEL_ID, [event.login]);
       if (this.settings.showWidget) {
         await this.renderSidebarEntry([event.login]);
@@ -236,12 +239,14 @@ export class ManiaExchangePlugin implements ControllerPlugin {
 
   private async openPanel(login: string): Promise<void> {
     const state = this.getPlayerState(login);
+    state.panelOpen = true;
     await this.renderSidebarEntry([login]);
     await this.renderPanel(login, state);
   }
 
   private async searchAndRender(login: string, query: string): Promise<void> {
     const state = this.getPlayerState(login);
+    state.panelOpen = true;
     state.query = query || this.settings.defaultQuery;
     state.busy = true;
     state.error = undefined;
@@ -266,6 +271,7 @@ export class ManiaExchangePlugin implements ControllerPlugin {
 
   private async importAndRender(login: string, mapId: number): Promise<void> {
     const state = this.getPlayerState(login);
+    state.panelOpen = true;
     state.busy = true;
     state.error = undefined;
     await this.renderPanel(login, state);
@@ -334,7 +340,8 @@ export class ManiaExchangePlugin implements ControllerPlugin {
     const created = {
       query: this.settings.defaultQuery,
       results: [],
-      busy: false
+      busy: false,
+      panelOpen: false
     } satisfies PlayerMxState;
     this.playerState.set(login, created);
     return created;
@@ -386,9 +393,9 @@ function formatMapLabel(map: { name?: string; gbxMapName?: string; author?: stri
 
 function renderSmxPanel(state: PlayerMxState): string {
   const rows = buildDefaultListRows(
-    state.results.slice(0, 4).map((result) => ({
-      left: `#${result.mapId} ${truncate(result.gbxMapName ?? result.name ?? "unknown", 32)}`,
-      right: truncate(result.author ?? "-", 14),
+    state.results.slice(0, 5).map((result) => ({
+      left: `#${result.mapId} ${truncate(result.gbxMapName ?? result.name ?? "unknown", 21)}`,
+      right: truncate(result.author ?? "-", 10),
       action: `${ACTION_IMPORT_PREFIX}${result.mapId}`,
       actionLabel: "Import"
     }))
@@ -417,8 +424,8 @@ function renderSmxPanel(state: PlayerMxState): string {
           ...rows
         ],
         {
-          posn: "0 35 20",
-          size: "120 42"
+          posn: "-92 34 20",
+          size: "86 44"
         }
       )
     ])

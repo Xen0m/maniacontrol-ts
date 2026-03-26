@@ -27,13 +27,19 @@ export function buildMainWindow(
         style: MANIACONTROL_STYLES.backgroundStyle,
         substyle: MANIACONTROL_STYLES.backgroundSubstyle
       }),
+      quad({
+        posn: "0 18.5 1",
+        sizen: `${size.split(" ")[0]} 5.5`,
+        style: MANIACONTROL_STYLES.backgroundStyle,
+        substyle: MANIACONTROL_STYLES.cardSubstyle
+      }),
       label({
-        posn: "-55 17 2",
-        sizen: "40 3",
+        posn: "-38 17.1 2",
+        sizen: "44 3",
         halign: "left",
         style: MANIACONTROL_STYLES.titleTextStyle,
         textcolor: MANIACONTROL_STYLES.primaryTextColor,
-        textsize: "1.5",
+        textsize: "1.35",
         textemboss: "1",
         text: title
       }),
@@ -65,12 +71,12 @@ export function buildStatusWindow(
         substyle: MANIACONTROL_STYLES.backgroundSubstyle
       }),
       label({
-        posn: "-43 -1.1 2",
-        sizen: "24 2.5",
+        posn: "-29 -1.1 2",
+        sizen: "18 2.5",
         halign: "left",
         style: MANIACONTROL_STYLES.titleTextStyle,
         textcolor: MANIACONTROL_STYLES.primaryTextColor,
-        textsize: "1.1",
+        textsize: "1",
         textemboss: "1",
         text: title
       }),
@@ -84,13 +90,13 @@ export function buildCloseButton(action: string): WindowNode {
     {},
     [
       quad({
-        posn: "56 17 2",
+        posn: "38 17 2",
         sizen: "5 5",
         bgcolor: MANIACONTROL_STYLES.closeColor,
         action
       }),
       label({
-        posn: "57.4 15.9 3",
+        posn: "39.4 15.9 3",
         textcolor: MANIACONTROL_STYLES.primaryTextColor,
         textsize: "1.2",
         textemboss: "1",

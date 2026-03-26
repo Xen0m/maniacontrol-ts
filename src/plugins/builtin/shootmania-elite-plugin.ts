@@ -413,18 +413,13 @@ function formatTurnEndMessage(turnNumber: number, victoryLabel: string | undefin
 }
 
 function renderEliteStateWidget(state: EliteStateSnapshot): string {
-  const lastTurn = state.lastCompletedTurn;
   const currentTurn = state.currentTurn;
+  const scoreText = `${state.stats.attackerWins} - ${state.stats.defenderWins}`;
   const summaryRows = [
     { label: "Pause", value: stripColorCodes(formatPauseState(state.paused, state.pauseSupported)) },
     { label: "Turn", value: String(currentTurn?.number ?? state.turnNumber) },
-    { label: "Attacker", value: stripColorCodes(`${currentTurn?.attacker ?? lastTurn?.attacker ?? "-"}`) },
-    {
-      label: "Defenders",
-      value: truncate(stripColorCodes((currentTurn?.defenders ?? lastTurn?.defenders ?? []).join(", ") || "-"), 24)
-    }
+    { label: "Score", value: scoreText }
   ];
-  const footer = `$0f0A ${state.stats.attackerWins}$fff / $f33D ${state.stats.defenderWins}$fff`;
 
   return renderManialink(
     manialink(ELITE_WIDGET_ID, [
@@ -432,36 +427,27 @@ function renderEliteStateWidget(state: EliteStateSnapshot): string {
         "Elite",
         [
           ...summaryRows.flatMap((row, index) => {
-            const rowY = -3.3 - index * 2.2;
+            const rowY = -3.3 - index * 2.1;
             return [
               label({
-                posn: `-43 ${rowY} 2`,
-                sizen: "10 2",
+                posn: `-29 ${rowY} 2`,
+                sizen: "8 2",
                 halign: "left",
                 textcolor: MANIACONTROL_STYLES.secondaryTextColor,
-                textsize: "0.8",
+                textsize: "0.72",
                 textemboss: "1",
                 text: row.label
               }),
               label({
-                posn: `-31 ${rowY} 2`,
-                sizen: "26 2",
+                posn: `-20 ${rowY} 2`,
+                sizen: "16 2",
                 halign: "left",
                 textcolor: MANIACONTROL_STYLES.primaryTextColor,
-                textsize: "0.82",
+                textsize: "0.76",
                 textemboss: "1",
                 text: row.value
               })
             ];
-          }),
-          label({
-            posn: "-43 -11.2 2",
-            sizen: "38 2",
-            halign: "left",
-            textcolor: MANIACONTROL_STYLES.primaryTextColor,
-            textsize: "0.78",
-            textemboss: "1",
-            text: footer
           })
         ],
         {

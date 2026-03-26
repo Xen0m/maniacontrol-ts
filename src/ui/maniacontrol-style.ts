@@ -26,8 +26,8 @@ export const MANIACONTROL_STYLES = {
 
 export const SIDEBAR_DEFAULTS = {
   shootmania: {
-    x: 146,
-    y: -24,
+    x: 134,
+    y: -18,
     z: 5
   },
   trackmania: {
@@ -35,18 +35,18 @@ export const SIDEBAR_DEFAULTS = {
     y: 17,
     z: 5
   },
-  itemSize: 8,
+  itemSize: 12,
   itemMarginFactor: 1.2
 } as const;
 
 export const WINDOW_DEFAULTS = {
   main: {
-    posn: "0 35 20",
-    size: "120 42"
+    posn: "-92 34 20",
+    size: "86 44"
   },
   status: {
-    posn: "132 76 5",
-    size: "48 12.5"
+    posn: "118 72 5",
+    size: "34 9.8"
   }
 } as const satisfies Record<string, WindowGeometry>;
 

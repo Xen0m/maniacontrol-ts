@@ -64,18 +64,18 @@ export function buildSidebarButtonContent(text: string, action: string): Sidebar
       action
     }),
     label({
-      posn: "0 -0.4 2",
-      sizen: `${size - 1} 3`,
+      posn: "0 -0.7 2",
+      sizen: `${size - 1} 4`,
       style: MANIACONTROL_STYLES.titleTextStyle,
       textcolor: MANIACONTROL_STYLES.primaryTextColor,
       text,
-      textsize: "1.05",
+      textsize: "1.2",
       textemboss: "1",
       action
     }),
     quad({
-      posn: `0 ${-(size / 2) - 0.7} 1`,
-      sizen: `${size} 0.6`,
+      posn: `0 ${-(size / 2) - 0.9} 1`,
+      sizen: `${size} 0.8`,
       bgcolor: MANIACONTROL_STYLES.accentColor
     })
   ];
