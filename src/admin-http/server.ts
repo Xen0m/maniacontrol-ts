@@ -12,6 +12,7 @@ import { ShootManiaElitePlugin } from "../plugins/builtin/shootmania-elite-plugi
 import { SseHub } from "./sse-hub.js";
 import { AdminAuditLog } from "./audit-log.js";
 import { AdminActivityLog } from "./activity-log.js";
+import { LocalRecordsStore } from "./local-records-store.js";
 
 type AdminRole = "owner" | "operator" | "observer";
 
@@ -59,6 +60,7 @@ export class AdminHttpServer {
   private readonly sseHub = new SseHub();
   private readonly auditLog: AdminAuditLog;
   private readonly activityLog: AdminActivityLog;
+  private readonly localRecordsStore: LocalRecordsStore;
   private server?: Server;
 
   public constructor(options: AdminHttpServerOptions) {
@@ -71,6 +73,7 @@ export class AdminHttpServer {
     this.getManiaExchangePlugin = options.getManiaExchangePlugin;
     this.auditLog = new AdminAuditLog(this.config.auditPath);
     this.activityLog = new AdminActivityLog(this.config.activityPath);
+    this.localRecordsStore = new LocalRecordsStore(this.config.localRecordsPath);
   }
 
   public async start(): Promise<void> {
@@ -110,6 +113,7 @@ export class AdminHttpServer {
         payload: { params: sanitizeParams(event.params) }
       });
       void this.captureRankingSnapshot("map-end");
+      void this.captureLocalRecordsSnapshot();
     });
     this.callbacks.on("ManiaPlanet.PlayerConnect", (event) => {
       this.sseHub.publish("server.playerConnect", event);
@@ -273,6 +277,30 @@ export class AdminHttpServer {
           count: entries.length,
           winnerTeam,
           entries
+        });
+      }
+
+      if (method === "GET" && url.pathname === "/records/local/current-map") {
+        if (!this.hasScope(auth, "read")) {
+          return await this.writeForbidden(response, auth, "read");
+        }
+        const currentMap = await this.client.getCurrentMapInfo();
+        const snapshot = await this.localRecordsStore.getCurrentMapRecords(currentMap.uId);
+        return await this.writeJson(response, 200, {
+          currentMap,
+          records: snapshot
+        });
+      }
+
+      if (method === "GET" && url.pathname === "/records/local/maps") {
+        if (!this.hasScope(auth, "read")) {
+          return await this.writeForbidden(response, auth, "read");
+        }
+        const limit = clampInt(url.searchParams.get("limit"), 20, 1, 200);
+        const maps = await this.localRecordsStore.listMaps(limit);
+        return await this.writeJson(response, 200, {
+          count: maps.length,
+          maps
         });
       }
 
@@ -1053,6 +1081,32 @@ export class AdminHttpServer {
       this.logger.debug({ error, trigger }, "failed to capture ranking snapshot");
     }
   }
+
+  private async captureLocalRecordsSnapshot(): Promise<void> {
+    try {
+      const currentMap = await this.client.getCurrentMapInfo();
+      const ranking = await this.client.getCurrentRanking(20, 0);
+      if (!currentMap.uId || ranking.length === 0) {
+        return;
+      }
+      const snapshot = await this.localRecordsStore.recordMapRanking(currentMap, ranking);
+      if (!snapshot) {
+        return;
+      }
+      await this.appendActivity({
+        category: "records",
+        type: "records.local.updated",
+        summary: "Updated local records",
+        payload: {
+          mapUid: snapshot.mapUid,
+          mapName: snapshot.mapName,
+          topLogin: snapshot.entries[0]?.login
+        }
+      });
+    } catch (error) {
+      this.logger.debug({ error }, "failed to capture local records snapshot");
+    }
+  }
 }
 
 function clampInt(value: string | null, fallback: number, min: number, max: number): number {
@@ -1163,6 +1217,7 @@ function classifyActivityCategory(action: string): string {
   if (action.startsWith("server.players.")) return "players";
   if (action.startsWith("server.maps.")) return "maps";
   if (action.startsWith("server.ranking.")) return "ranking";
+  if (action.startsWith("records.")) return "records";
   if (action.startsWith("server.chat.")) return "chat";
   if (action.startsWith("server.votes.")) return "votes";
   if (action.startsWith("server.mode-script")) return "mode";

@@ -13,6 +13,7 @@ Private HTTP API intended for `maniacontrol-companion`.
 - `principals`
 - `auditPath`
 - `activityPath`
+- `localRecordsPath`
 - `chatLoggingEnabled`
 
 When `chatLoggingEnabled` is `true`, successful write actions are also announced in the dedicated server chat.
@@ -99,6 +100,14 @@ Returns a slice of the server map list.
 ### `GET /server/ranking/current?limit=20&offset=0`
 
 Returns the current live ranking and winner team when available.
+
+### `GET /records/local/current-map`
+
+Returns the persisted local records snapshot for the current map when available.
+
+### `GET /records/local/maps?limit=20`
+
+Returns recent local record snapshots by map.
 
 ### `POST /server/maps/choose-next`
 

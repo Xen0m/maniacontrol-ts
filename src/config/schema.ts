@@ -36,6 +36,7 @@ export const appConfigSchema = z.object({
     principals: z.array(adminPrincipalConfigSchema).default([]),
     auditPath: z.string().min(1).default("./data/admin-audit.jsonl"),
     activityPath: z.string().min(1).default("./data/admin-activity.jsonl"),
+    localRecordsPath: z.string().min(1).default("./data/local-records.json"),
     chatLoggingEnabled: z.boolean().default(false)
   }).refine(
     (value) => Boolean(value.token) || value.principals.length > 0,

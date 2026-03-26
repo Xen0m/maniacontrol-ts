@@ -50,6 +50,7 @@
     ],
     "auditPath": "./data/admin-audit.jsonl",
     "activityPath": "./data/admin-activity.jsonl",
+    "localRecordsPath": "./data/local-records.json",
     "chatLoggingEnabled": false
   },
   "storage": {
