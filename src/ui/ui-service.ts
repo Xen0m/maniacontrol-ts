@@ -1,6 +1,7 @@
 import type { Logger } from "pino";
 
 import type { DedicatedClient } from "../transport/dedicated-client.js";
+import { manialink, renderManialink } from "./manialink.js";
 
 const DEFAULT_CHAT_PREFIX = "$<$z$ff0» ";
 
@@ -27,6 +28,10 @@ export class UIService {
 
   public async hideWidget(recipients?: string[]): Promise<void> {
     await this.client.sendHideManialinkPage(recipients);
+  }
+
+  public async clearWidget(widgetId: string, recipients?: string[]): Promise<void> {
+    await this.showWidget(renderManialink(manialink(widgetId, [])), recipients);
   }
 
   public logWidgetUpdate(widgetId: string): void {

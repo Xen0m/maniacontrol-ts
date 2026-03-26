@@ -30,6 +30,7 @@ const MX_WIDGET_ID = "maniacontrol-ts.maniaexchange.launcher";
 const MX_PANEL_ID = "maniacontrol-ts.maniaexchange.panel";
 const ACTION_OPEN_PANEL = "maniacontrol.ts.mx.open";
 const ACTION_CLOSE_PANEL = "maniacontrol.ts.mx.close";
+const ACTION_TOGGLE_LAUNCHER = "maniacontrol.ts.mx.toggle-launcher";
 const ACTION_SEARCH = "maniacontrol.ts.mx.search";
 const ACTION_IMPORT_PREFIX = "maniacontrol.ts.mx.import.";
 const SEARCH_ENTRY_NAME = "maniacontrol.ts.mx.query";
@@ -47,6 +48,8 @@ export class ManiaExchangePlugin implements ControllerPlugin {
   private context?: PluginContext;
   private settings = DEFAULT_SETTINGS;
   private readonly playerState = new Map<string, PlayerMxState>();
+  private readonly connectedPlayers = new Set<string>();
+  private readonly collapsedLaunchers = new Set<string>();
 
   public async setup(context: PluginContext): Promise<void> {
     this.context = context;
@@ -66,6 +69,27 @@ export class ManiaExchangePlugin implements ControllerPlugin {
 
     context.callbacks.on("manialink-answer", (event) => {
       void this.handleManialinkAnswer(event as PlayerManialinkPageAnswerEvent);
+    });
+
+    context.callbacks.on("ManiaPlanet.PlayerConnect", (event) => {
+      const login = typeof event.params[0] === "string" ? event.params[0] : undefined;
+      if (!login || !this.settings.showWidget) {
+        return;
+      }
+
+      this.connectedPlayers.add(login);
+      void this.renderLauncherWidget([login]);
+    });
+
+    context.callbacks.on("ManiaPlanet.PlayerDisconnect", (event) => {
+      const login = typeof event.params[0] === "string" ? event.params[0] : undefined;
+      if (!login) {
+        return;
+      }
+
+      this.connectedPlayers.delete(login);
+      this.collapsedLaunchers.delete(login);
+      this.playerState.delete(login);
     });
 
     if (this.settings.showWidget) {
@@ -111,7 +135,8 @@ export class ManiaExchangePlugin implements ControllerPlugin {
   }
 
   public async stop(): Promise<void> {
-    await this.context?.ui.hideWidget();
+    await this.context?.ui.clearWidget(MX_WIDGET_ID);
+    await this.context?.ui.clearWidget(MX_PANEL_ID);
   }
 
   private async handleManialinkAnswer(event: PlayerManialinkPageAnswerEvent): Promise<void> {
@@ -125,10 +150,21 @@ export class ManiaExchangePlugin implements ControllerPlugin {
     }
 
     if (event.answer === ACTION_CLOSE_PANEL) {
-      await this.context.ui.hideWidget([event.login]);
+      await this.context.ui.clearWidget(MX_PANEL_ID, [event.login]);
       if (this.settings.showWidget) {
         await this.renderLauncherWidget([event.login]);
       }
+      return;
+    }
+
+    if (event.answer === ACTION_TOGGLE_LAUNCHER) {
+      if (this.collapsedLaunchers.has(event.login)) {
+        this.collapsedLaunchers.delete(event.login);
+      } else {
+        this.collapsedLaunchers.add(event.login);
+      }
+
+      await this.renderLauncherWidget([event.login]);
       return;
     }
 
@@ -149,6 +185,7 @@ export class ManiaExchangePlugin implements ControllerPlugin {
 
   private async openPanel(login: string): Promise<void> {
     const state = this.getPlayerState(login);
+    await this.renderLauncherWidget([login]);
     await this.renderPanel(login, state);
   }
 
@@ -214,22 +251,9 @@ export class ManiaExchangePlugin implements ControllerPlugin {
       manialink(MX_WIDGET_ID, [
         frame(
           {
-            posn: "-118 62 1"
+            posn: "-146 52 1"
           },
-          [
-            quad({
-              sizen: "28 7",
-              bgcolor: "000a",
-              action: ACTION_OPEN_PANEL
-            }),
-            label({
-              posn: "1 -1 2",
-              sizen: "24 4",
-              text: "$fffSMX Import",
-              textsize: "1.4",
-              action: ACTION_OPEN_PANEL
-            })
-          ]
+          renderLauncherContent(shouldRenderCollapsedLauncher(recipients, this.collapsedLaunchers))
         )
       ])
     );
@@ -304,35 +328,35 @@ function formatMapLabel(map: { name?: string; gbxMapName?: string; author?: stri
 
 function renderSmxPanel(state: PlayerMxState): string {
   const rows = state.results.slice(0, 6).flatMap((result, index) => {
-    const rowY = -20 - index * 6.5;
+    const rowY = -21 - index * 5.7;
     return [
       quad({
         posn: "0 " + rowY + " 1",
-        sizen: "104 5.5",
-        bgcolor: index % 2 === 0 ? "fff1" : "fff2"
+        sizen: "98 4.8",
+        bgcolor: index % 2 === 0 ? "ffffff10" : "ffffff18"
       }),
       label({
-        posn: "-50 " + (rowY - 0.9) + " 2",
-        sizen: "70 4",
-        textsize: "1.2",
-        text: `$fff#${result.mapId} ${truncate(result.gbxMapName ?? result.name ?? "unknown", 34)}`
+        posn: "-46.5 " + (rowY - 0.8) + " 2",
+        sizen: "56 3.4",
+        textsize: "1.05",
+        text: `$fff#${result.mapId} ${truncate(result.gbxMapName ?? result.name ?? "unknown", 28)}`
       }),
       label({
-        posn: "10 " + (rowY - 0.9) + " 2",
-        sizen: "24 4",
-        textsize: "1.1",
-        text: `$0bf${truncate(result.author ?? "-", 14)}`
+        posn: "12 " + (rowY - 0.8) + " 2",
+        sizen: "18 3.4",
+        textsize: "1",
+        text: `$7fd${truncate(result.author ?? "-", 11)}`
       }),
       quad({
-        posn: "43 " + (rowY - 0.2) + " 2",
-        sizen: "16 4.2",
-        bgcolor: "2a5c",
+        posn: "34 " + (rowY - 0.15) + " 2",
+        sizen: "15 3.8",
+        bgcolor: "1f9bcedd",
         action: `${ACTION_IMPORT_PREFIX}${result.mapId}`
       }),
       label({
-        posn: "45 " + (rowY - 1.1) + " 3",
-        sizen: "12 3",
-        textsize: "1.1",
+        posn: "36 " + (rowY - 1) + " 3",
+        sizen: "11 3",
+        textsize: "1",
         text: "$fffImport",
         action: `${ACTION_IMPORT_PREFIX}${result.mapId}`
       })
@@ -343,63 +367,75 @@ function renderSmxPanel(state: PlayerMxState): string {
     manialink(MX_PANEL_ID, [
       frame(
         {
-          posn: "-82 46 1"
+          posn: "-98 42 1"
         },
         [
           quad({
-            sizen: "116 58",
-            bgcolor: "001d"
+            sizen: "108 52",
+            bgcolor: "06111ae8"
           }),
           quad({
             posn: "0 0 1",
-            sizen: "116 6",
-            bgcolor: "0b2d"
+            sizen: "108 5.2",
+            bgcolor: "1694c6ee"
           }),
           label({
-            posn: "-54 -1 2",
-            textsize: "2",
+            posn: "-50 -1 2",
+            textsize: "1.8",
             text: "$fffSMX IMPORT"
           }),
           quad({
-            posn: "50 -1 2",
-            sizen: "8 4",
+            posn: "44 -0.7 2",
+            sizen: "7 3.2",
+            bgcolor: "0008",
+            action: ACTION_TOGGLE_LAUNCHER
+          }),
+          label({
+            posn: "45.4 -1.05 3",
+            textsize: "0.95",
+            text: "$fff–",
+            action: ACTION_TOGGLE_LAUNCHER
+          }),
+          quad({
+            posn: "52 -0.7 2",
+            sizen: "7 3.2",
             bgcolor: "a22d",
             action: ACTION_CLOSE_PANEL
           }),
           label({
-            posn: "52 -1.1 3",
-            textsize: "1.2",
+            posn: "53.7 -1.05 3",
+            textsize: "0.95",
             text: "$fffX",
             action: ACTION_CLOSE_PANEL
           }),
           label({
-            posn: "-54 -9 2",
-            textsize: "1.3",
-            text: "$aaaSearch ShootMania Exchange"
+            posn: "-50 -8 2",
+            textsize: "1.15",
+            text: "$9bbSearch ShootMania Exchange"
           }),
           entry({
-            posn: "-54 -14 2",
-            sizen: "72 4.4",
+            posn: "-50 -12.6 2",
+            sizen: "64 4.1",
             name: SEARCH_ENTRY_NAME,
             default: state.query,
-            textsize: "1.2",
+            textsize: "1.05",
             style: "TextValueSmall"
           }),
           quad({
-            posn: "24 -14 2",
-            sizen: "16 4.4",
-            bgcolor: "26ad",
+            posn: "20 -12.6 2",
+            sizen: "14 4.1",
+            bgcolor: "1f9bcedd",
             action: ACTION_SEARCH
           }),
           label({
-            posn: "26 -15 3",
-            textsize: "1.2",
+            posn: "22 -13.5 3",
+            textsize: "1",
             text: state.busy ? "$fff..." : "$fffSearch",
             action: ACTION_SEARCH
           }),
           label({
-            posn: "-54 -18.5 2",
-            textsize: "1.05",
+            posn: "-50 -17 2",
+            textsize: "0.95",
             text: state.error
               ? `$f88${state.error}`
               : state.results.length > 0
@@ -411,6 +447,96 @@ function renderSmxPanel(state: PlayerMxState): string {
       )
     ])
   );
+}
+
+function renderLauncherContent(
+  collapsed: boolean
+): Array<ReturnType<typeof quad> | ReturnType<typeof label>> {
+  if (collapsed) {
+    return [
+      quad({
+        sizen: "14 4.8",
+        bgcolor: "07141edd",
+        action: ACTION_TOGGLE_LAUNCHER
+      }),
+      quad({
+        posn: "0 0 1",
+        sizen: "14 0.9",
+        bgcolor: "1694c6ff",
+        action: ACTION_TOGGLE_LAUNCHER
+      }),
+      label({
+        posn: "1 -1.35 2",
+        sizen: "10 2",
+        text: "$fffSMX",
+        textsize: "1.05",
+        action: ACTION_TOGGLE_LAUNCHER
+      }),
+      label({
+        posn: "9.5 -1.3 2",
+        sizen: "2 2",
+        text: "$fff+",
+        textsize: "1.1",
+        action: ACTION_TOGGLE_LAUNCHER
+      })
+    ];
+  }
+
+  return [
+    quad({
+      sizen: "34 6.2",
+      bgcolor: "07141edd"
+    }),
+    quad({
+      posn: "0 0 1",
+      sizen: "34 1",
+      bgcolor: "1694c6ff"
+    }),
+    label({
+      posn: "2 -1.2 2",
+      sizen: "18 3",
+      text: "$fffSMX IMPORT",
+      textsize: "1.25",
+      action: ACTION_OPEN_PANEL
+    }),
+    quad({
+      posn: "24 -1 2",
+      sizen: "7 3.4",
+      bgcolor: "1f9bcedd",
+      action: ACTION_OPEN_PANEL
+    }),
+    label({
+      posn: "25.6 -1.15 3",
+      sizen: "4 2",
+      text: "$fffOpen",
+      textsize: "0.95",
+      action: ACTION_OPEN_PANEL
+    }),
+    quad({
+      posn: "31.5 -1 2",
+      sizen: "2.5 3.4",
+      bgcolor: "0008",
+      action: ACTION_TOGGLE_LAUNCHER
+    }),
+    label({
+      posn: "32 -1.15 3",
+      sizen: "1 2",
+      text: "$fff–",
+      textsize: "0.95",
+      action: ACTION_TOGGLE_LAUNCHER
+    })
+  ];
+}
+
+function shouldRenderCollapsedLauncher(
+  recipients: string[] | undefined,
+  collapsedLaunchers: ReadonlySet<string>
+): boolean {
+  if (!recipients || recipients.length === 0) {
+    return false;
+  }
+
+  return collapsedLaunchers.has(recipients[0]);
 }
 
 function truncate(value: string, maxLength: number): string {

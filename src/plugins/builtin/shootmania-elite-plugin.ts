@@ -5,6 +5,7 @@ const SHOOTMANIA_ELITE_TITLE = "SMStormElite@nadeolabs";
 const DEFAULT_HISTORY_LIMIT = 20;
 const STATE_CHANGED_EVENT = "Plugin.ShootManiaElite.StateChanged";
 const ELITE_WIDGET_ID = "maniacontrol-ts.elite.state";
+const ACTION_TOGGLE_WIDGET = "maniacontrol.ts.elite.toggle";
 
 interface EliteStartTurnPayload {
   attacker?: string;
@@ -83,6 +84,8 @@ export class ShootManiaElitePlugin implements ControllerPlugin {
       defendersEliminated: 0
     }
   };
+  private readonly connectedPlayers = new Set<string>();
+  private readonly collapsedPlayers = new Set<string>();
 
   public async setup(context: PluginContext): Promise<void> {
     this.context = context;
@@ -114,7 +117,7 @@ export class ShootManiaElitePlugin implements ControllerPlugin {
       this.resetState();
       this.emitStateChanged("map-reset");
       context.logger.info("Re-rendering Elite widget after BeginMap");
-      void this.renderWidget();
+      void this.renderWidgetForActivePlayers();
     });
 
     context.callbacks.on("ManiaPlanet.PlayerConnect", (event) => {
@@ -123,7 +126,33 @@ export class ShootManiaElitePlugin implements ControllerPlugin {
         return;
       }
 
+      this.connectedPlayers.add(login);
       context.logger.info({ login }, "Sending Elite widget to connected player");
+      void this.renderWidget([login]);
+    });
+
+    context.callbacks.on("ManiaPlanet.PlayerDisconnect", (event) => {
+      const login = typeof event.params[0] === "string" ? event.params[0] : undefined;
+      if (!login) {
+        return;
+      }
+
+      this.connectedPlayers.delete(login);
+      this.collapsedPlayers.delete(login);
+    });
+
+    context.callbacks.on(`manialink-answer:${ACTION_TOGGLE_WIDGET}`, (event) => {
+      const login = "login" in event && typeof event.login === "string" ? event.login : undefined;
+      if (!login) {
+        return;
+      }
+
+      if (this.collapsedPlayers.has(login)) {
+        this.collapsedPlayers.delete(login);
+      } else {
+        this.collapsedPlayers.add(login);
+      }
+
       void this.renderWidget([login]);
     });
 
@@ -136,7 +165,7 @@ export class ShootManiaElitePlugin implements ControllerPlugin {
         this.state.pauseSupported = payload.available;
       }
       this.emitStateChanged("pause-status");
-      void this.renderWidget();
+      void this.renderWidgetForActivePlayers();
     });
 
     context.callbacks.on("Shootmania.Elite.StartTurn", (event) => {
@@ -197,7 +226,7 @@ export class ShootManiaElitePlugin implements ControllerPlugin {
     }
 
     this.emitStateChanged("turn-start");
-    void this.renderWidget();
+    void this.renderWidgetForActivePlayers();
   }
 
   private handleEliteEndTurn(payload: EliteEndTurnPayload | undefined): void {
@@ -235,7 +264,7 @@ export class ShootManiaElitePlugin implements ControllerPlugin {
     }
 
     this.emitStateChanged("turn-end");
-    void this.renderWidget();
+    void this.renderWidgetForActivePlayers();
   }
 
   private emitStateChanged(reason: "map-reset" | "turn-start" | "turn-end" | "pause-status"): void {
@@ -256,7 +285,7 @@ export class ShootManiaElitePlugin implements ControllerPlugin {
 
   public async stop(): Promise<void> {
     if (this.settings.showWidget) {
-      await this.context?.ui.hideWidget();
+      await this.context?.ui.clearWidget(ELITE_WIDGET_ID);
     }
   }
 
@@ -265,7 +294,7 @@ export class ShootManiaElitePlugin implements ControllerPlugin {
       return;
     }
 
-    const xml = renderEliteStateWidget(this.state);
+    const xml = renderEliteStateWidget(this.state, shouldRenderCollapsed(recipients, this.collapsedPlayers));
     if (recipients && recipients.length > 0) {
       this.context.logger.debug({ recipients }, "Rendering Elite widget to specific recipients");
     } else {
@@ -273,6 +302,21 @@ export class ShootManiaElitePlugin implements ControllerPlugin {
     }
     await this.context.ui.showWidget(xml, recipients);
     this.context.ui.logWidgetUpdate(ELITE_WIDGET_ID);
+  }
+
+  private async renderWidgetForActivePlayers(): Promise<void> {
+    if (!this.context || !this.settings.showWidget) {
+      return;
+    }
+
+    if (this.connectedPlayers.size === 0) {
+      await this.renderWidget();
+      return;
+    }
+
+    await Promise.all(
+      [...this.connectedPlayers].map((login) => this.renderWidget([login]))
+    );
   }
 }
 
@@ -340,57 +384,159 @@ function formatTurnEndMessage(turnNumber: number, victoryLabel: string | undefin
   return `$fffElite turn $ff0#${turnNumber}$fff ended.`;
 }
 
-function renderEliteStateWidget(state: EliteStateSnapshot): string {
+function renderEliteStateWidget(state: EliteStateSnapshot, collapsed = false): string {
   const lastTurn = state.lastCompletedTurn;
   const currentTurn = state.currentTurn;
-  const lines = [
-    "$o$fffELITE CONTROL",
-    `$cccPause: ${formatPauseState(state.paused, state.pauseSupported)}`,
-    `$cccTurn: $fff${currentTurn?.number ?? state.turnNumber}`,
-    `$cccAttacker: $fff${currentTurn?.attacker ?? lastTurn?.attacker ?? "-"}`,
-    `$cccDefenders: $fff${(currentTurn?.defenders ?? lastTurn?.defenders ?? []).join(", ") || "-"}`,
-    `$cccLast result: $fff${lastTurn?.victoryLabel ?? "-"}`,
-    `$cccScore flow: $0f0A ${state.stats.attackerWins}$fff / $f33D ${state.stats.defenderWins}`
+  const summaryLines = [
+    { labelText: "$999Pause", valueText: formatPauseState(state.paused, state.pauseSupported) },
+    { labelText: "$999Turn", valueText: `$fff${currentTurn?.number ?? state.turnNumber}` },
+    { labelText: "$999Attacker", valueText: `$fff${currentTurn?.attacker ?? lastTurn?.attacker ?? "-"}` },
+    {
+      labelText: "$999Defenders",
+      valueText: `$fff${truncate((currentTurn?.defenders ?? lastTurn?.defenders ?? []).join(", ") || "-", 24)}`
+    },
+    { labelText: "$999Last", valueText: `$fff${lastTurn?.victoryLabel ?? "-"}` }
   ];
-
-  const lineHeight = 4;
-  const contentHeight = lines.length * lineHeight + 6;
 
   return renderManialink(
     manialink(ELITE_WIDGET_ID, [
       frame(
         {
-          posn: "126 62 1"
+          posn: "118 58 1"
         },
-        [
-          quad({
-            posn: "0 0 0",
-            sizen: `62 ${contentHeight}`,
-            halign: "right",
-            valign: "top",
-            bgcolor: "0008"
-          }),
-          quad({
-            posn: "0 0 1",
-            sizen: "62 3",
-            halign: "right",
-            valign: "top",
-            bgcolor: "09f8"
-          }),
-          ...lines.map((text, index) =>
-            label({
-              posn: `-30 ${-5 - index * lineHeight} 2`,
-              sizen: "58 4",
-              halign: "left",
-              textsize: 1,
-              textemboss: "1",
-              text
-            })
-          )
-        ]
+        collapsed ? renderCollapsedEliteWidget() : renderExpandedEliteWidget(summaryLines, state)
       )
     ])
   );
+}
+
+function renderExpandedEliteWidget(
+  lines: Array<{ labelText: string; valueText: string }>,
+  state: EliteStateSnapshot
+): Array<ReturnType<typeof quad> | ReturnType<typeof label>> {
+  return [
+    quad({
+      posn: "0 0 0",
+      sizen: "54 31",
+      halign: "right",
+      valign: "top",
+      bgcolor: "08131dee"
+    }),
+    quad({
+      posn: "0 0 1",
+      sizen: "54 4.4",
+      halign: "right",
+      valign: "top",
+      bgcolor: "0b9fe0dd"
+    }),
+    quad({
+      posn: "-46.5 -0.6 2",
+      sizen: "5.4 2.9",
+      bgcolor: "ffffff22"
+    }),
+    label({
+      posn: "-39.5 -1.1 2",
+      sizen: "28 3",
+      halign: "left",
+      textsize: 1.4,
+      text: "$fffELITE CONTROL"
+    }),
+    quad({
+      posn: "-6 -0.8 2",
+      sizen: "4.2 2.8",
+      bgcolor: "0008",
+      action: ACTION_TOGGLE_WIDGET
+    }),
+    label({
+      posn: "-4.8 -1.15 3",
+      sizen: "2 2",
+      textsize: 1.1,
+      text: "$fff–",
+      action: ACTION_TOGGLE_WIDGET
+    }),
+    ...lines.flatMap((line, index) => {
+      const rowY = -6.7 - index * 4.5;
+      return [
+        label({
+          posn: "-50 " + rowY + " 2",
+          sizen: "14 3",
+          halign: "left",
+          textsize: 1,
+          text: line.labelText
+        }),
+        label({
+          posn: "-33 " + rowY + " 2",
+          sizen: "29 3",
+          halign: "left",
+          textsize: 1.05,
+          text: line.valueText
+        })
+      ];
+    }),
+    quad({
+      posn: "-50 -29 1",
+      sizen: "46 3.4",
+      bgcolor: "ffffff12"
+    }),
+    label({
+      posn: "-48.5 -29.6 2",
+      sizen: "44 3",
+      halign: "left",
+      textsize: 1.05,
+      text: `$0f0A ${state.stats.attackerWins}$fff  ·  $f33D ${state.stats.defenderWins}$fff  ·  $999Done $fff${state.stats.turnsCompleted}`
+    })
+  ];
+}
+
+function renderCollapsedEliteWidget(): Array<ReturnType<typeof quad> | ReturnType<typeof label>> {
+  return [
+    quad({
+      posn: "0 0 0",
+      sizen: "20 4.8",
+      halign: "right",
+      valign: "top",
+      bgcolor: "08131ddd",
+      action: ACTION_TOGGLE_WIDGET
+    }),
+    quad({
+      posn: "0 0 1",
+      sizen: "20 0.9",
+      halign: "right",
+      valign: "top",
+      bgcolor: "0b9fe0ff",
+      action: ACTION_TOGGLE_WIDGET
+    }),
+    label({
+      posn: "-16.8 -1.35 2",
+      sizen: "16 2",
+      halign: "left",
+      textsize: 1.15,
+      text: "$fffELITE",
+      action: ACTION_TOGGLE_WIDGET
+    }),
+    label({
+      posn: "-4.2 -1.3 2",
+      sizen: "3 2",
+      textsize: 1.15,
+      text: "$fff+",
+      action: ACTION_TOGGLE_WIDGET
+    })
+  ];
+}
+
+function shouldRenderCollapsed(
+  recipients: string[] | undefined,
+  collapsedPlayers: ReadonlySet<string>
+): boolean {
+  if (!recipients || recipients.length === 0) {
+    return false;
+  }
+
+  return collapsedPlayers.has(recipients[0]);
+}
+
+function truncate(value: string, maxLength: number): string {
+  return value.length > maxLength ? `${value.slice(0, maxLength - 1)}…` : value;
 }
 
 function formatPauseState(paused: boolean | null, supported: boolean): string {
