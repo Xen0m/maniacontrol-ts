@@ -10,6 +10,8 @@
     "start": "node dist/index.js --config maniacontrol.local.json",
     "mx:search": "tsx src/cli/import-smx-map.ts search",
     "mx:import": "tsx src/cli/import-smx-map.ts import",
+    "deploy:list": "tsx src/cli/deploy-instance.ts list",
+    "deploy:create": "tsx src/cli/deploy-instance.ts create",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run"
   },

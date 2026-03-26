@@ -47,6 +47,21 @@ The project now includes a first SMX integration layer:
 
 There is also a built-in `maniaexchange` plugin that can import configured map IDs on startup.
 
+## Deployment tool
+
+The repository now includes a first multi-instance deployment helper:
+
+- `npm run deploy:list`
+- `npm run deploy:create -- <id> --server-port 5000 --admin-port 3001 --server-password change-me`
+
+By default it writes:
+
+- a manifest in `./deployments/instances.json`
+- one config per instance in `./deployments/<id>/maniacontrol.local.json`
+- one data directory per instance in `./deployments/<id>/data`
+
+This is intended for setups where you run one `maniacontrol-ts` instance per dedicated server, for example `lobby`, `elite`, or `joust`.
+
 ## Chat commands
 
 The controller now exposes a first chat-command fallback for common actions:
