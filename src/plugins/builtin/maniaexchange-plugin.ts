@@ -251,7 +251,7 @@ export class ManiaExchangePlugin implements ControllerPlugin {
       manialink(MX_WIDGET_ID, [
         frame(
           {
-            posn: "-146 52 1"
+            posn: "-154 68 1"
           },
           renderLauncherContent(shouldRenderCollapsedLauncher(recipients, this.collapsedLaunchers))
         )
@@ -328,35 +328,38 @@ function formatMapLabel(map: { name?: string; gbxMapName?: string; author?: stri
 
 function renderSmxPanel(state: PlayerMxState): string {
   const rows = state.results.slice(0, 6).flatMap((result, index) => {
-    const rowY = -21 - index * 5.7;
+    const rowY = -16.5 - index * 4.8;
     return [
       quad({
         posn: "0 " + rowY + " 1",
-        sizen: "98 4.8",
+        sizen: "82 4.1",
         bgcolor: index % 2 === 0 ? "ffffff10" : "ffffff18"
       }),
       label({
-        posn: "-46.5 " + (rowY - 0.8) + " 2",
-        sizen: "56 3.4",
-        textsize: "1.05",
-        text: `$fff#${result.mapId} ${truncate(result.gbxMapName ?? result.name ?? "unknown", 28)}`
+        posn: "-39.5 " + (rowY - 0.75) + " 2",
+        sizen: "46 3",
+        textsize: "0.9",
+        textemboss: "1",
+        text: `$fff#${result.mapId} ${truncate(result.gbxMapName ?? result.name ?? "unknown", 23)}`
       }),
       label({
-        posn: "12 " + (rowY - 0.8) + " 2",
-        sizen: "18 3.4",
-        textsize: "1",
-        text: `$7fd${truncate(result.author ?? "-", 11)}`
+        posn: "8 " + (rowY - 0.75) + " 2",
+        sizen: "16 3",
+        textsize: "0.85",
+        textemboss: "1",
+        text: `$7fd${truncate(result.author ?? "-", 9)}`
       }),
       quad({
-        posn: "34 " + (rowY - 0.15) + " 2",
-        sizen: "15 3.8",
+        posn: "28 " + (rowY - 0.1) + " 2",
+        sizen: "11 3.2",
         bgcolor: "1f9bcedd",
         action: `${ACTION_IMPORT_PREFIX}${result.mapId}`
       }),
       label({
-        posn: "36 " + (rowY - 1) + " 3",
-        sizen: "11 3",
-        textsize: "1",
+        posn: "29.2 " + (rowY - 0.85) + " 3",
+        sizen: "8 2.4",
+        textsize: "0.82",
+        textemboss: "1",
         text: "$fffImport",
         action: `${ACTION_IMPORT_PREFIX}${result.mapId}`
       })
@@ -367,75 +370,81 @@ function renderSmxPanel(state: PlayerMxState): string {
     manialink(MX_PANEL_ID, [
       frame(
         {
-          posn: "-98 42 1"
+          posn: "-148 48 1"
         },
         [
           quad({
-            sizen: "108 52",
-            bgcolor: "06111ae8"
+            sizen: "90 38",
+            bgcolor: "06111af2"
           }),
           quad({
             posn: "0 0 1",
-            sizen: "108 5.2",
-            bgcolor: "1694c6ee"
+            sizen: "90 4.2",
+            bgcolor: "0b6ca4ff"
           }),
           label({
-            posn: "-50 -1 2",
-            textsize: "1.8",
+            posn: "-42 -0.9 2",
+            textsize: "1.25",
+            textemboss: "1",
             text: "$fffSMX IMPORT"
           }),
           quad({
-            posn: "44 -0.7 2",
-            sizen: "7 3.2",
+            posn: "33 -0.6 2",
+            sizen: "5.5 2.6",
             bgcolor: "0008",
             action: ACTION_TOGGLE_LAUNCHER
           }),
           label({
-            posn: "45.4 -1.05 3",
-            textsize: "0.95",
+            posn: "34.2 -0.88 3",
+            textsize: "0.8",
+            textemboss: "1",
             text: "$fff–",
             action: ACTION_TOGGLE_LAUNCHER
           }),
           quad({
-            posn: "52 -0.7 2",
-            sizen: "7 3.2",
+            posn: "39.5 -0.6 2",
+            sizen: "5.5 2.6",
             bgcolor: "a22d",
             action: ACTION_CLOSE_PANEL
           }),
           label({
-            posn: "53.7 -1.05 3",
-            textsize: "0.95",
+            posn: "40.9 -0.88 3",
+            textsize: "0.8",
+            textemboss: "1",
             text: "$fffX",
             action: ACTION_CLOSE_PANEL
           }),
           label({
-            posn: "-50 -8 2",
-            textsize: "1.15",
-            text: "$9bbSearch ShootMania Exchange"
+            posn: "-42 -6.5 2",
+            textsize: "0.95",
+            textemboss: "1",
+            text: "$fffSearch ShootMania Exchange"
           }),
           entry({
-            posn: "-50 -12.6 2",
-            sizen: "64 4.1",
+            posn: "-42 -10.3 2",
+            sizen: "51 3.6",
             name: SEARCH_ENTRY_NAME,
             default: state.query,
-            textsize: "1.05",
+            textsize: "0.95",
             style: "TextValueSmall"
           }),
           quad({
-            posn: "20 -12.6 2",
-            sizen: "14 4.1",
+            posn: "14 -10.3 2",
+            sizen: "10 3.6",
             bgcolor: "1f9bcedd",
             action: ACTION_SEARCH
           }),
           label({
-            posn: "22 -13.5 3",
-            textsize: "1",
+            posn: "15.4 -11.1 3",
+            textsize: "0.82",
+            textemboss: "1",
             text: state.busy ? "$fff..." : "$fffSearch",
             action: ACTION_SEARCH
           }),
           label({
-            posn: "-50 -17 2",
-            textsize: "0.95",
+            posn: "-42 -13.9 2",
+            textsize: "0.82",
+            textemboss: "1",
             text: state.error
               ? `$f88${state.error}`
               : state.results.length > 0
@@ -455,28 +464,30 @@ function renderLauncherContent(
   if (collapsed) {
     return [
       quad({
-        sizen: "14 4.8",
-        bgcolor: "07141edd",
+        sizen: "12 3.6",
+        bgcolor: "06111af2",
         action: ACTION_TOGGLE_LAUNCHER
       }),
       quad({
         posn: "0 0 1",
-        sizen: "14 0.9",
-        bgcolor: "1694c6ff",
+        sizen: "12 0.8",
+        bgcolor: "0b6ca4ff",
         action: ACTION_TOGGLE_LAUNCHER
       }),
       label({
-        posn: "1 -1.35 2",
-        sizen: "10 2",
+        posn: "1 -1 2",
+        sizen: "8 2",
         text: "$fffSMX",
-        textsize: "1.05",
+        textsize: "0.9",
+        textemboss: "1",
         action: ACTION_TOGGLE_LAUNCHER
       }),
       label({
-        posn: "9.5 -1.3 2",
+        posn: "8.1 -0.95 2",
         sizen: "2 2",
         text: "$fff+",
-        textsize: "1.1",
+        textsize: "0.9",
+        textemboss: "1",
         action: ACTION_TOGGLE_LAUNCHER
       })
     ];
@@ -484,45 +495,48 @@ function renderLauncherContent(
 
   return [
     quad({
-      sizen: "34 6.2",
-      bgcolor: "07141edd"
+      sizen: "28 5",
+      bgcolor: "06111af2"
     }),
     quad({
       posn: "0 0 1",
-      sizen: "34 1",
-      bgcolor: "1694c6ff"
+      sizen: "28 0.9",
+      bgcolor: "0b6ca4ff"
     }),
     label({
-      posn: "2 -1.2 2",
-      sizen: "18 3",
+      posn: "1.6 -0.95 2",
+      sizen: "14 2.6",
       text: "$fffSMX IMPORT",
-      textsize: "1.25",
+      textsize: "0.95",
+      textemboss: "1",
       action: ACTION_OPEN_PANEL
     }),
     quad({
-      posn: "24 -1 2",
-      sizen: "7 3.4",
+      posn: "18.3 -0.8 2",
+      sizen: "5.6 2.8",
       bgcolor: "1f9bcedd",
       action: ACTION_OPEN_PANEL
     }),
     label({
-      posn: "25.6 -1.15 3",
-      sizen: "4 2",
+      posn: "19.3 -0.98 3",
+      sizen: "3 2",
       text: "$fffOpen",
-      textsize: "0.95",
+      textsize: "0.72",
+      textemboss: "1",
       action: ACTION_OPEN_PANEL
     }),
     quad({
-      posn: "31.5 -1 2",
-      sizen: "2.5 3.4",
+      posn: "24.3 -0.8 2",
+      sizen: "3.7 2.8",
       bgcolor: "0008",
       action: ACTION_TOGGLE_LAUNCHER
     }),
     label({
-      posn: "32 -1.15 3",
+      posn: "25.4 -0.98 3",
       sizen: "1 2",
       text: "$fff–",
-      textsize: "0.95",
+      textsize: "0.78",
+      textemboss: "1",
       action: ACTION_TOGGLE_LAUNCHER
     })
   ];

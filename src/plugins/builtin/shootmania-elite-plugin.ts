@@ -417,72 +417,77 @@ function renderExpandedEliteWidget(
   return [
     quad({
       posn: "0 0 0",
-      sizen: "54 31",
+      sizen: "46 26",
       halign: "right",
       valign: "top",
-      bgcolor: "08131dee"
+      bgcolor: "00131eee"
     }),
     quad({
       posn: "0 0 1",
-      sizen: "54 4.4",
+      sizen: "46 3.6",
       halign: "right",
       valign: "top",
-      bgcolor: "0b9fe0dd"
+      bgcolor: "0b6ca4ff"
     }),
     quad({
-      posn: "-46.5 -0.6 2",
-      sizen: "5.4 2.9",
-      bgcolor: "ffffff22"
+      posn: "-42.8 -0.65 2",
+      sizen: "3.2 2.2",
+      bgcolor: "ffffff33"
     }),
     label({
-      posn: "-39.5 -1.1 2",
-      sizen: "28 3",
+      posn: "-37.5 -1.05 2",
+      sizen: "26 3",
       halign: "left",
-      textsize: 1.4,
+      textsize: 1.15,
+      textemboss: "1",
       text: "$fffELITE CONTROL"
     }),
     quad({
-      posn: "-6 -0.8 2",
-      sizen: "4.2 2.8",
-      bgcolor: "0008",
+      posn: "-4.8 -0.65 2",
+      sizen: "3 2.2",
+      bgcolor: "000a",
       action: ACTION_TOGGLE_WIDGET
     }),
     label({
-      posn: "-4.8 -1.15 3",
+      posn: "-4.1 -0.95 3",
       sizen: "2 2",
-      textsize: 1.1,
+      textsize: 0.95,
+      textemboss: "1",
       text: "$fff–",
       action: ACTION_TOGGLE_WIDGET
     }),
     ...lines.flatMap((line, index) => {
-      const rowY = -6.7 - index * 4.5;
+      const rowY = -5.8 - index * 3.7;
       return [
         label({
-          posn: "-50 " + rowY + " 2",
-          sizen: "14 3",
+          posn: "-42 " + rowY + " 2",
+          sizen: "11 3",
           halign: "left",
-          textsize: 1,
+          textsize: 0.9,
+          textemboss: "1",
           text: line.labelText
         }),
         label({
-          posn: "-33 " + rowY + " 2",
-          sizen: "29 3",
+          posn: "-28.5 " + rowY + " 2",
+          sizen: "24 3",
           halign: "left",
-          textsize: 1.05,
+          textsize: 0.95,
+          textemboss: "1",
           text: line.valueText
         })
       ];
     }),
     quad({
-      posn: "-50 -29 1",
-      sizen: "46 3.4",
-      bgcolor: "ffffff12"
+      posn: "-42 -24.1 1",
+      sizen: "38 2.8",
+      bgcolor: "ffffff16"
     }),
     label({
-      posn: "-48.5 -29.6 2",
-      sizen: "44 3",
+      posn: "-40.5 -24.65 2",
+      sizen: "36 2.5",
       halign: "left",
-      textsize: 1.05,
+      textsize: 0.9,
+      textemboss: "1",
       text: `$0f0A ${state.stats.attackerWins}$fff  ·  $f33D ${state.stats.defenderWins}$fff  ·  $999Done $fff${state.stats.turnsCompleted}`
     })
   ];
@@ -492,32 +497,34 @@ function renderCollapsedEliteWidget(): Array<ReturnType<typeof quad> | ReturnTyp
   return [
     quad({
       posn: "0 0 0",
-      sizen: "20 4.8",
+      sizen: "16 3.8",
       halign: "right",
       valign: "top",
-      bgcolor: "08131ddd",
+      bgcolor: "00131eee",
       action: ACTION_TOGGLE_WIDGET
     }),
     quad({
       posn: "0 0 1",
-      sizen: "20 0.9",
+      sizen: "16 0.8",
       halign: "right",
       valign: "top",
-      bgcolor: "0b9fe0ff",
+      bgcolor: "0b6ca4ff",
       action: ACTION_TOGGLE_WIDGET
     }),
     label({
-      posn: "-16.8 -1.35 2",
-      sizen: "16 2",
+      posn: "-13.5 -1.05 2",
+      sizen: "11 2",
       halign: "left",
-      textsize: 1.15,
+      textsize: 0.95,
+      textemboss: "1",
       text: "$fffELITE",
       action: ACTION_TOGGLE_WIDGET
     }),
     label({
-      posn: "-4.2 -1.3 2",
+      posn: "-3.2 -1 2",
       sizen: "3 2",
-      textsize: 1.15,
+      textsize: 0.95,
+      textemboss: "1",
       text: "$fff+",
       action: ACTION_TOGGLE_WIDGET
     })
