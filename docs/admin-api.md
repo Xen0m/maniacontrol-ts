@@ -20,6 +20,10 @@ Returns process and dedicated-session health summary.
 
 Returns startup snapshot plus current dedicated status and game mode.
 
+### `GET /server/players`
+
+Returns the current connected players with enriched detailed info when available.
+
 ### `GET /server/maps/current`
 
 Returns the current map info from the dedicated server.
@@ -82,6 +86,37 @@ Example body:
 
 SSE stream for companion realtime updates.
 
+### `GET /admin/audit?limit=100`
+
+Returns recent persisted admin actions from the audit log.
+
+### `POST /server/players/kick`
+
+```json
+{
+  "login": "player_login",
+  "message": "Kicked from companion"
+}
+```
+
+### `POST /server/players/force-team`
+
+```json
+{
+  "login": "player_login",
+  "team": 0
+}
+```
+
+### `POST /server/players/force-spectator`
+
+```json
+{
+  "login": "player_login",
+  "mode": 1
+}
+```
+
 Current event types:
 
 - `system.connected`
@@ -93,3 +128,8 @@ Current event types:
 - `server.endMap`
 - `server.nextMapChanged`
 - `server.mapJumped`
+- `server.playerConnect`
+- `server.playerDisconnect`
+- `server.playerKicked`
+- `server.playerTeamForced`
+- `server.playerSpectatorForced`

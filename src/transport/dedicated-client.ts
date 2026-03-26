@@ -38,6 +38,33 @@ export interface DedicatedMapInfo {
   mapStyle?: string;
 }
 
+export interface DedicatedPlayerInfo {
+  login?: string;
+  nickName?: string;
+  playerId?: number;
+  teamId?: number;
+  isSpectator?: boolean;
+  spectatorStatus?: number;
+  ladderRanking?: number;
+  language?: string;
+}
+
+export interface DedicatedPlayerDetailedInfo {
+  login?: string;
+  nickName?: string;
+  playerId?: number;
+  teamId?: number;
+  isSpectator?: boolean;
+  spectatorStatus?: number;
+  ladderRanking?: number;
+  language?: string;
+  ping?: number;
+  packetLossRate?: number;
+  isInOfficialMode?: boolean;
+  isReferee?: boolean;
+  isPodiumReady?: boolean;
+}
+
 export class DedicatedClient {
   private readonly transport: GbxRemoteClient;
   private readonly logger: Logger;
@@ -196,6 +223,59 @@ export class DedicatedClient {
 
   public async jumpToMapIdent(uId: string): Promise<void> {
     await this.callBoolean("JumpToMapIdent", [uId]);
+  }
+
+  public async getPlayerList(length = 100, offset = 0, compatibility = 1): Promise<DedicatedPlayerInfo[]> {
+    const result = await this.transport.call("GetPlayerList", [length, offset, compatibility]);
+    if (!Array.isArray(result)) {
+      throw new Error("GetPlayerList returned an unexpected payload");
+    }
+
+    return result
+      .filter((item): item is Record<string, XmlRpcValue> => {
+        return typeof item === "object" && item !== null && !Array.isArray(item);
+      })
+      .map((item) => ({
+        login: readString(item, "login"),
+        nickName: readString(item, "nickName"),
+        playerId: readNumber(item, "playerId"),
+        teamId: readNumber(item, "teamId"),
+        isSpectator: readBoolean(item, "isSpectator"),
+        spectatorStatus: readNumber(item, "spectatorStatus"),
+        ladderRanking: readNumber(item, "ladderRanking"),
+        language: readString(item, "language"),
+      }));
+  }
+
+  public async getDetailedPlayerInfo(login: string): Promise<DedicatedPlayerDetailedInfo> {
+    const result = await this.callStructWithParams("GetDetailedPlayerInfo", [login]);
+    return {
+      login: readString(result, "login"),
+      nickName: readString(result, "nickName"),
+      playerId: readNumber(result, "playerId"),
+      teamId: readNumber(result, "teamId"),
+      isSpectator: readBoolean(result, "isSpectator"),
+      spectatorStatus: readNumber(result, "spectatorStatus"),
+      ladderRanking: readNumber(result, "ladderRanking"),
+      language: readString(result, "language"),
+      ping: readNumber(result, "ping"),
+      packetLossRate: readNumber(result, "packetLossRate"),
+      isInOfficialMode: readBoolean(result, "isInOfficialMode"),
+      isReferee: readBoolean(result, "isReferee"),
+      isPodiumReady: readBoolean(result, "isPodiumReady"),
+    };
+  }
+
+  public async kick(login: string, message = ""): Promise<void> {
+    await this.callBoolean("Kick", [login, message]);
+  }
+
+  public async forcePlayerTeam(login: string, team: 0 | 1): Promise<void> {
+    await this.callBoolean("ForcePlayerTeam", [login, team]);
+  }
+
+  public async forceSpectator(login: string, mode: 0 | 1 | 2 | 3): Promise<void> {
+    await this.callBoolean("ForceSpectator", [login, mode]);
   }
 
   public async addMap(fileName: string): Promise<void> {
@@ -359,6 +439,11 @@ function readNumber(struct: Record<string, XmlRpcValue>, key: string): number | 
     return Number.isFinite(parsed) ? parsed : undefined;
   }
   return undefined;
+}
+
+function readBoolean(struct: Record<string, XmlRpcValue>, key: string): boolean | undefined {
+  const value = readValue(struct, key);
+  return typeof value === "boolean" ? value : undefined;
 }
 
 function readStructArray(

@@ -9,6 +9,7 @@ import type { DedicatedClient, DedicatedSystemInfo, DedicatedVersion } from "../
 import { ManiaExchangePlugin } from "../plugins/builtin/maniaexchange-plugin.js";
 import { ShootManiaElitePlugin } from "../plugins/builtin/shootmania-elite-plugin.js";
 import { SseHub } from "./sse-hub.js";
+import { AdminAuditLog } from "./audit-log.js";
 
 interface ControllerSnapshot {
   startedAt: string;
@@ -35,6 +36,7 @@ export class AdminHttpServer {
   private readonly getElitePlugin: () => ShootManiaElitePlugin | undefined;
   private readonly getManiaExchangePlugin: () => ManiaExchangePlugin | undefined;
   private readonly sseHub = new SseHub();
+  private readonly auditLog: AdminAuditLog;
   private server?: Server;
 
   public constructor(options: AdminHttpServerOptions) {
@@ -45,6 +47,7 @@ export class AdminHttpServer {
     this.getSnapshot = options.getSnapshot;
     this.getElitePlugin = options.getElitePlugin;
     this.getManiaExchangePlugin = options.getManiaExchangePlugin;
+    this.auditLog = new AdminAuditLog(this.config.auditPath);
   }
 
   public async start(): Promise<void> {
@@ -53,6 +56,7 @@ export class AdminHttpServer {
     }
 
     this.server = createServer((request, response) => {
+      (response as ServerResponse & { req?: IncomingMessage }).req = request;
       void this.handleRequest(request, response);
     });
 
@@ -64,6 +68,12 @@ export class AdminHttpServer {
     });
     this.callbacks.on("ManiaPlanet.EndMap", (event) => {
       this.sseHub.publish("server.endMap", event);
+    });
+    this.callbacks.on("ManiaPlanet.PlayerConnect", (event) => {
+      this.sseHub.publish("server.playerConnect", event);
+    });
+    this.callbacks.on("ManiaPlanet.PlayerDisconnect", (event) => {
+      this.sseHub.publish("server.playerDisconnect", event);
     });
 
     await new Promise<void>((resolve, reject) => {
@@ -110,7 +120,7 @@ export class AdminHttpServer {
 
     try {
       if (method === "GET" && url.pathname === "/health") {
-        return this.writeJson(response, 200, {
+        return await this.writeJson(response, 200, {
           status: "ok",
           startedAt: this.getSnapshot().startedAt,
           admin: {
@@ -126,7 +136,7 @@ export class AdminHttpServer {
       if (method === "GET" && url.pathname === "/server/info") {
         const status = await this.client.getStatus();
         const gameMode = await this.client.getGameMode();
-        return this.writeJson(response, 200, {
+        return await this.writeJson(response, 200, {
           ...this.getSnapshot(),
           status,
           gameMode
@@ -135,19 +145,19 @@ export class AdminHttpServer {
 
       if (method === "GET" && url.pathname === "/server/maps/current") {
         const currentMap = await this.client.getCurrentMapInfo();
-        return this.writeJson(response, 200, currentMap);
+        return await this.writeJson(response, 200, currentMap);
       }
 
       if (method === "GET" && url.pathname === "/server/maps/next") {
         const nextMap = await this.client.getNextMapInfo();
-        return this.writeJson(response, 200, nextMap);
+        return await this.writeJson(response, 200, nextMap);
       }
 
       if (method === "GET" && url.pathname === "/server/maps") {
         const limit = clampInt(url.searchParams.get("limit"), 50, 1, 200);
         const offset = clampInt(url.searchParams.get("offset"), 0, 0, 10_000);
         const maps = await this.client.getMapList(limit, offset);
-        return this.writeJson(response, 200, {
+        return await this.writeJson(response, 200, {
           offset,
           limit,
           count: maps.length,
@@ -155,11 +165,32 @@ export class AdminHttpServer {
         });
       }
 
+      if (method === "GET" && url.pathname === "/server/players") {
+        const players = await this.client.getPlayerList(100, 0, 1);
+        const detailedPlayers = await Promise.all(
+          players.map(async (player) => {
+            if (!player.login) return player;
+            try {
+              return {
+                ...player,
+                ...(await this.client.getDetailedPlayerInfo(player.login))
+              };
+            } catch {
+              return player;
+            }
+          })
+        );
+        return await this.writeJson(response, 200, {
+          count: detailedPlayers.length,
+          players: detailedPlayers
+        });
+      }
+
       if (method === "POST" && url.pathname === "/server/maps/choose-next") {
         const body = await this.readJsonBody(request);
         const fileName = typeof body.fileName === "string" ? body.fileName.trim() : "";
         if (!fileName) {
-          return this.writeJson(response, 400, { error: "fileName is required" });
+          return await this.writeJson(response, 400, { error: "fileName is required" });
         }
 
         await this.client.chooseNextMap(fileName);
@@ -168,14 +199,18 @@ export class AdminHttpServer {
           fileName,
           nextMap
         });
-        return this.writeJson(response, 200, nextMap);
+        return await this.writeJson(response, 200, nextMap, {
+          action: "server.maps.choose-next",
+          success: true,
+          detail: { fileName }
+        });
       }
 
       if (method === "POST" && url.pathname === "/server/maps/jump") {
         const body = await this.readJsonBody(request);
         const uId = typeof body.uId === "string" ? body.uId.trim() : "";
         if (!uId) {
-          return this.writeJson(response, 400, { error: "uId is required" });
+          return await this.writeJson(response, 400, { error: "uId is required" });
         }
 
         await this.client.jumpToMapIdent(uId);
@@ -184,7 +219,62 @@ export class AdminHttpServer {
           uId,
           currentMap
         });
-        return this.writeJson(response, 200, currentMap);
+        return await this.writeJson(response, 200, currentMap, {
+          action: "server.maps.jump",
+          success: true,
+          detail: { uId }
+        });
+      }
+
+      if (method === "POST" && url.pathname === "/server/players/kick") {
+        const body = await this.readJsonBody(request);
+        const login = typeof body.login === "string" ? body.login.trim() : "";
+        const message = typeof body.message === "string" ? body.message : "";
+        if (!login) {
+          return await this.writeJson(response, 400, { error: "login is required" });
+        }
+
+        await this.client.kick(login, message);
+        this.sseHub.publish("server.playerKicked", { login, message });
+        return await this.writeJson(response, 200, { ok: true, login }, {
+          action: "server.players.kick",
+          success: true,
+          detail: { login }
+        });
+      }
+
+      if (method === "POST" && url.pathname === "/server/players/force-team") {
+        const body = await this.readJsonBody(request);
+        const login = typeof body.login === "string" ? body.login.trim() : "";
+        const team = typeof body.team === "number" ? body.team : Number(body.team);
+        if (!login || ![0, 1].includes(team)) {
+          return await this.writeJson(response, 400, { error: "login and team(0|1) are required" });
+        }
+
+        await this.client.forcePlayerTeam(login, team as 0 | 1);
+        this.sseHub.publish("server.playerTeamForced", { login, team });
+        return await this.writeJson(response, 200, { ok: true, login, team }, {
+          action: "server.players.force-team",
+          success: true,
+          detail: { login, team }
+        });
+      }
+
+      if (method === "POST" && url.pathname === "/server/players/force-spectator") {
+        const body = await this.readJsonBody(request);
+        const login = typeof body.login === "string" ? body.login.trim() : "";
+        const mode = typeof body.mode === "number" ? body.mode : Number(body.mode);
+        if (!login || ![0, 1, 2, 3].includes(mode)) {
+          return await this.writeJson(response, 400, { error: "login and mode(0..3) are required" });
+        }
+
+        await this.client.forceSpectator(login, mode as 0 | 1 | 2 | 3);
+        this.sseHub.publish("server.playerSpectatorForced", { login, mode });
+        return await this.writeJson(response, 200, { ok: true, login, mode }, {
+          action: "server.players.force-spectator",
+          success: true,
+          detail: { login, mode }
+        });
       }
 
       if (method === "GET" && url.pathname === "/elite/state") {
@@ -192,7 +282,7 @@ export class AdminHttpServer {
         if (!elitePlugin) {
           return this.writeJson(response, 503, { error: "shootmania-elite plugin is not enabled" });
         }
-        return this.writeJson(response, 200, elitePlugin.getStateSnapshot());
+        return await this.writeJson(response, 200, elitePlugin.getStateSnapshot());
       }
 
       if (method === "POST" && url.pathname === "/elite/pause") {
@@ -202,7 +292,10 @@ export class AdminHttpServer {
         }
         const state = await elitePlugin.pauseMatch();
         this.sseHub.publish("elite.pause", { paused: true, state });
-        return this.writeJson(response, 200, state);
+        return await this.writeJson(response, 200, state, {
+          action: "elite.pause",
+          success: true
+        });
       }
 
       if (method === "POST" && url.pathname === "/elite/resume") {
@@ -212,7 +305,10 @@ export class AdminHttpServer {
         }
         const state = await elitePlugin.resumeMatch();
         this.sseHub.publish("elite.resume", { paused: false, state });
-        return this.writeJson(response, 200, state);
+        return await this.writeJson(response, 200, state, {
+          action: "elite.resume",
+          success: true
+        });
       }
 
       if (method === "GET" && url.pathname === "/mx/search") {
@@ -222,7 +318,7 @@ export class AdminHttpServer {
         }
         const query = url.searchParams.get("q") ?? "";
         const results = await mxPlugin.searchMaps(query);
-        return this.writeJson(response, 200, {
+        return await this.writeJson(response, 200, {
           query,
           results
         });
@@ -237,7 +333,7 @@ export class AdminHttpServer {
         const body = await this.readJsonBody(request);
         const mapId = typeof body.mapId === "number" ? body.mapId : Number(body.mapId);
         if (!Number.isInteger(mapId) || mapId <= 0) {
-          return this.writeJson(response, 400, { error: "mapId must be a positive integer" });
+          return await this.writeJson(response, 400, { error: "mapId must be a positive integer" });
         }
 
         const result = await mxPlugin.importMapById(mapId);
@@ -246,7 +342,20 @@ export class AdminHttpServer {
           mapName: result.map.gbxMapName ?? result.map.name,
           fileName: result.serverFileName
         });
-        return this.writeJson(response, 200, result);
+        return await this.writeJson(response, 200, result, {
+          action: "mx.import",
+          success: true,
+          detail: { mapId }
+        });
+      }
+
+      if (method === "GET" && url.pathname === "/admin/audit") {
+        const limit = clampInt(url.searchParams.get("limit"), 100, 1, 500);
+        const entries = await this.auditLog.readRecent(limit);
+        return await this.writeJson(response, 200, {
+          count: entries.length,
+          entries
+        });
       }
 
       if (method === "GET" && url.pathname === "/events") {
@@ -263,12 +372,18 @@ export class AdminHttpServer {
         return;
       }
 
-      this.writeJson(response, 404, { error: "not found" });
+      await this.writeJson(response, 404, { error: "not found" });
     } catch (error) {
       this.logger.error({ error, method, path: url.pathname }, "Admin API request failed");
-      this.writeJson(response, 500, {
+      await this.writeJson(response, 500, {
         error: "internal_error",
         message: error instanceof Error ? error.message : String(error)
+      }, {
+        action: `error:${url.pathname}`,
+        success: false,
+        detail: {
+          message: error instanceof Error ? error.message : String(error)
+        }
       });
     }
   }
@@ -300,7 +415,23 @@ export class AdminHttpServer {
     return parsed as Record<string, unknown>;
   }
 
-  private writeJson(response: ServerResponse, statusCode: number, body: unknown): void {
+  private async writeJson(
+    response: ServerResponse,
+    statusCode: number,
+    body: unknown,
+    audit?: { action: string; success: boolean; detail?: Record<string, unknown> }
+  ): Promise<void> {
+    if (audit) {
+      await this.auditLog.append({
+        timestamp: new Date().toISOString(),
+        action: audit.action,
+        method: response.req?.method ?? "UNKNOWN",
+        path: response.req?.url ?? "",
+        client: response.req?.socket.remoteAddress,
+        success: audit.success,
+        detail: audit.detail
+      });
+    }
     response.writeHead(statusCode, {
       "Content-Type": "application/json; charset=utf-8"
     });
