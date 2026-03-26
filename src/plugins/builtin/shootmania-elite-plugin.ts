@@ -67,7 +67,7 @@ export class ShootManiaElitePlugin implements ControllerPlugin {
     logTurns: true,
     logStateSnapshots: false,
     autoPauseEnabled: false,
-    showWidget: true
+    showWidget: false
   };
   private state: EliteStateSnapshot = {
     activeTitle: SHOOTMANIA_ELITE_TITLE,
@@ -93,6 +93,7 @@ export class ShootManiaElitePlugin implements ControllerPlugin {
   public async setup(context: PluginContext): Promise<void> {
     this.context = context;
     this.settings = parseSettings(context.pluginConfig.settings);
+    await context.ui.clearWidget(ELITE_WIDGET_ID);
 
     if (context.systemInfo.titleId !== SHOOTMANIA_ELITE_TITLE) {
       context.logger.warn(
@@ -314,9 +315,7 @@ export class ShootManiaElitePlugin implements ControllerPlugin {
   }
 
   public async stop(): Promise<void> {
-    if (this.settings.showWidget) {
-      await this.context?.ui.clearWidget(ELITE_WIDGET_ID);
-    }
+    await this.context?.ui.clearWidget(ELITE_WIDGET_ID);
   }
 
   public getStateSnapshot(): EliteStateSnapshot {
@@ -392,7 +391,7 @@ function parseSettings(settings: Record<string, unknown> | undefined): ElitePlug
     logTurns: settings?.logTurns !== false,
     logStateSnapshots: settings?.logStateSnapshots === true,
     autoPauseEnabled: settings?.autoPauseEnabled === true,
-    showWidget: settings?.showWidget !== false
+    showWidget: settings?.showWidget === true
   };
 }
 

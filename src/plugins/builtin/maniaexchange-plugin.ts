@@ -25,7 +25,7 @@ const DEFAULT_SETTINGS: ManiaExchangePluginSettings = {
   importOnStartIds: [],
   insertMode: "add",
   announceImports: true,
-  showWidget: true,
+  showWidget: false,
   searchLimit: 6,
   defaultQuery: "elite"
 };
@@ -60,6 +60,8 @@ export class ManiaExchangePlugin implements ControllerPlugin {
   public async setup(context: PluginContext): Promise<void> {
     this.context = context;
     this.settings = parseSettings(context.pluginConfig.settings);
+    await context.ui.clearWidget(MX_WIDGET_ID);
+    await context.ui.clearWidget(MX_PANEL_ID);
 
     context.logger.info(
       {

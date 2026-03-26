@@ -103,7 +103,7 @@
         "logTurns": true,
         "logStateSnapshots": false,
         "autoPauseEnabled": false,
-        "showWidget": true
+        "showWidget": false
       }
     },
     {
@@ -115,7 +115,7 @@
         "importOnStartIds": [],
         "insertMode": "add",
         "announceImports": true,
-        "showWidget": true,
+        "showWidget": false,
         "searchLimit": 6,
         "defaultQuery": "elite"
       }
