@@ -1,11 +1,8 @@
 import type { PlayerManialinkPageAnswerEvent } from "../../core/callbacks.js";
 import { frame, manialink, renderManialink } from "../../ui/manialink.js";
-import {
-  buildMainPanelShell,
-  buildPanelRows,
-  buildSearchSection,
-  buildSidebarButton
-} from "../../ui/maniacontrol-layout.js";
+import { buildDefaultListRows, buildDefaultMapSearch } from "../../ui/list-helpers.js";
+import { SidebarMenuManager } from "../../ui/sidebar-menu-manager.js";
+import { buildMainWindow } from "../../ui/window-manager.js";
 import type { ControllerPlugin, PluginContext } from "../plugin.js";
 import { MapImportService } from "../../maps/map-import-service.js";
 import type { SmxMapSummary } from "../../integrations/mania-exchange/smx-client.js";
@@ -39,6 +36,8 @@ const ACTION_CLOSE_PANEL = "maniacontrol.ts.mx.close";
 const ACTION_SEARCH = "maniacontrol.ts.mx.search";
 const ACTION_IMPORT_PREFIX = "maniacontrol.ts.mx.import.";
 const SEARCH_ENTRY_NAME = "maniacontrol.ts.mx.query";
+const SIDEBAR_ENTRY_ID = "maniacontrol-ts.sidebar.maniaexchange";
+const SIDEBAR_ENTRY_ORDER = 0;
 
 interface PlayerMxState {
   query: string;
@@ -54,6 +53,7 @@ export class ManiaExchangePlugin implements ControllerPlugin {
   private settings = DEFAULT_SETTINGS;
   private readonly playerState = new Map<string, PlayerMxState>();
   private readonly connectedPlayers = new Set<string>();
+  private readonly sidebar = new SidebarMenuManager();
 
   public async setup(context: PluginContext): Promise<void> {
     this.context = context;
@@ -70,6 +70,13 @@ export class ManiaExchangePlugin implements ControllerPlugin {
       },
       "ManiaExchange plugin loaded"
     );
+
+    this.sidebar.addEntry({
+      id: SIDEBAR_ENTRY_ID,
+      order: SIDEBAR_ENTRY_ORDER,
+      text: "SMX",
+      action: ACTION_OPEN_PANEL
+    });
 
     context.callbacks.on("manialink-answer", (event) => {
       void this.handleManialinkAnswer(event as PlayerManialinkPageAnswerEvent);
@@ -243,9 +250,9 @@ export class ManiaExchangePlugin implements ControllerPlugin {
       manialink(MX_WIDGET_ID, [
         frame(
           {
-            posn: "146 -24 5"
+            posn: this.sidebar.getEntryPosition(SIDEBAR_ENTRY_ID, "shootmania") ?? "146 -24 5"
           },
-          renderSidebarEntryContent()
+          this.renderSidebarEntryContent()
         )
       ])
     );
@@ -277,6 +284,11 @@ export class ManiaExchangePlugin implements ControllerPlugin {
     } satisfies PlayerMxState;
     this.playerState.set(login, created);
     return created;
+  }
+
+  private renderSidebarEntryContent() {
+    const entry = this.sidebar.renderEntry(SIDEBAR_ENTRY_ID, "shootmania");
+    return (entry?.children ?? []).filter((child) => typeof child !== "string");
   }
 }
 
@@ -319,11 +331,12 @@ function formatMapLabel(map: { name?: string; gbxMapName?: string; author?: stri
 }
 
 function renderSmxPanel(state: PlayerMxState): string {
-  const rows = buildPanelRows(
+  const rows = buildDefaultListRows(
     state.results.slice(0, 4).map((result) => ({
       left: `#${result.mapId} ${truncate(result.gbxMapName ?? result.name ?? "unknown", 32)}`,
       right: truncate(result.author ?? "-", 14),
-      action: `${ACTION_IMPORT_PREFIX}${result.mapId}`
+      action: `${ACTION_IMPORT_PREFIX}${result.mapId}`,
+      actionLabel: "Import"
     }))
   );
 
@@ -336,28 +349,26 @@ function renderSmxPanel(state: PlayerMxState): string {
 
   return renderManialink(
     manialink(MX_PANEL_ID, [
-      buildMainPanelShell(
+      buildMainWindow(
         "SMX Import",
         ACTION_CLOSE_PANEL,
         [
-          ...buildSearchSection(
-            SEARCH_ENTRY_NAME,
-            state.query,
-            ACTION_SEARCH,
+          ...buildDefaultMapSearch({
+            entryName: SEARCH_ENTRY_NAME,
+            defaultValue: state.query,
+            searchAction: ACTION_SEARCH,
             statusText,
             statusColor
-          ),
+          }),
           ...rows
         ],
-        "0 35 20",
-        "120 42"
+        {
+          posn: "0 35 20",
+          size: "120 42"
+        }
       )
     ])
   );
-}
-
-function renderSidebarEntryContent() {
-  return buildSidebarButton("SMX", ACTION_OPEN_PANEL);
 }
 
 function truncate(value: string, maxLength: number): string {
