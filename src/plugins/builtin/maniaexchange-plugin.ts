@@ -1,5 +1,11 @@
 import type { PlayerManialinkPageAnswerEvent } from "../../core/callbacks.js";
-import { entry, frame, label, manialink, quad, renderManialink } from "../../ui/manialink.js";
+import { frame, manialink, renderManialink } from "../../ui/manialink.js";
+import {
+  buildMainPanelShell,
+  buildPanelRows,
+  buildSearchSection,
+  buildSidebarButton
+} from "../../ui/maniacontrol-layout.js";
 import type { ControllerPlugin, PluginContext } from "../plugin.js";
 import { MapImportService } from "../../maps/map-import-service.js";
 import type { SmxMapSummary } from "../../integrations/mania-exchange/smx-client.js";
@@ -313,161 +319,45 @@ function formatMapLabel(map: { name?: string; gbxMapName?: string; author?: stri
 }
 
 function renderSmxPanel(state: PlayerMxState): string {
-  const rows = state.results.slice(0, 4).flatMap((result, index) => {
-    const rowY = 6.5 - index * 6;
-    return [
-      quad({
-        posn: "0 " + rowY + " 1",
-        sizen: "112 5",
-        style: "Bgs1InRace",
-        substyle: index % 2 === 0 ? "BgCard1" : "BgCard"
-      }),
-      label({
-        posn: "-52 " + (rowY - 1.3) + " 2",
-        sizen: "66 3.5",
-        halign: "left",
-        textcolor: "fff",
-        textsize: "1",
-        textemboss: "1",
-        text: `#${result.mapId} ${truncate(result.gbxMapName ?? result.name ?? "unknown", 32)}`
-      }),
-      label({
-        posn: "20 " + (rowY - 1.3) + " 2",
-        sizen: "18 3.5",
-        halign: "left",
-        textcolor: "7fd",
-        textsize: "0.95",
-        textemboss: "1",
-        text: truncate(result.author ?? "-", 14)
-      }),
-      quad({
-        posn: "44 " + (rowY - 0.7) + " 2",
-        sizen: "14 3.8",
-        style: "Bgs1InRace",
-        substyle: "BgCard1",
-        action: `${ACTION_IMPORT_PREFIX}${result.mapId}`
-      }),
-      label({
-        posn: "46 " + (rowY - 1.4) + " 3",
-        sizen: "10 3",
-        textcolor: "fff",
-        textsize: "0.9",
-        textemboss: "1",
-        text: "Import",
-        action: `${ACTION_IMPORT_PREFIX}${result.mapId}`
-      })
-    ];
-  });
+  const rows = buildPanelRows(
+    state.results.slice(0, 4).map((result) => ({
+      left: `#${result.mapId} ${truncate(result.gbxMapName ?? result.name ?? "unknown", 32)}`,
+      right: truncate(result.author ?? "-", 14),
+      action: `${ACTION_IMPORT_PREFIX}${result.mapId}`
+    }))
+  );
+
+  const statusText = state.error
+    ? stripColorCodes(state.error)
+    : state.results.length > 0
+      ? `${state.results.length} result(s)`
+      : "Search ShootMania Exchange";
+  const statusColor = state.error ? "f88" : "aaa";
 
   return renderManialink(
     manialink(MX_PANEL_ID, [
-      frame(
-        {
-          posn: "0 35 20"
-        },
+      buildMainPanelShell(
+        "SMX Import",
+        ACTION_CLOSE_PANEL,
         [
-          quad({
-            sizen: "120 42",
-            style: "Bgs1InRace",
-            substyle: "BgTitleShadow"
-          }),
-          label({
-            posn: "-55 17 2",
-            sizen: "40 3",
-            halign: "left",
-            style: "TextTitle1",
-            textcolor: "fff",
-            textsize: "1.5",
-            textemboss: "1",
-            text: "SMX Import"
-          }),
-          quad({
-            posn: "56 17 2",
-            sizen: "5 5",
-            bgcolor: "a22d",
-            action: ACTION_CLOSE_PANEL
-          }),
-          label({
-            posn: "57.4 15.9 3",
-            textcolor: "fff",
-            textsize: "1.2",
-            textemboss: "1",
-            text: "X",
-            action: ACTION_CLOSE_PANEL
-          }),
-          label({
-            posn: "-55 9 2",
-            halign: "left",
-            textcolor: "fff",
-            textsize: "1.1",
-            textemboss: "1",
-            text: "Search ShootMania Exchange"
-          }),
-          entry({
-            posn: "-55 5 2",
-            sizen: "74 4",
-            name: SEARCH_ENTRY_NAME,
-            default: state.query,
-            textsize: "1",
-            style: "TextValueSmall"
-          }),
-          quad({
-            posn: "26 5 2",
-            sizen: "16 4",
-            style: "Bgs1InRace",
-            substyle: "BgCard1",
-            action: ACTION_SEARCH
-          }),
-          label({
-            posn: "29 4 3",
-            textcolor: "fff",
-            textsize: "1",
-            textemboss: "1",
-            text: state.busy ? "..." : "Search",
-            action: ACTION_SEARCH
-          }),
-          label({
-            posn: "-55 0 2",
-            halign: "left",
-            textsize: "0.9",
-            textcolor: state.error ? "f88" : "aaa",
-            textemboss: "1",
-            text: state.error
-              ? stripColorCodes(state.error)
-              : state.results.length > 0
-                ? `${state.results.length} result(s)`
-                : "Search ShootMania Exchange"
-          }),
+          ...buildSearchSection(
+            SEARCH_ENTRY_NAME,
+            state.query,
+            ACTION_SEARCH,
+            statusText,
+            statusColor
+          ),
           ...rows
-        ]
+        ],
+        "0 35 20",
+        "120 42"
       )
     ])
   );
 }
 
-function renderSidebarEntryContent(): Array<ReturnType<typeof quad> | ReturnType<typeof label>> {
-  return [
-    quad({
-      sizen: "8 8",
-      style: "Bgs1InRace",
-      substyle: "BgTitleShadow"
-    }),
-    label({
-      posn: "0 -0.4 2",
-      sizen: "7 3",
-      style: "TextTitle1",
-      textcolor: "fff",
-      text: "SMX",
-      textsize: "1.05",
-      textemboss: "1",
-      action: ACTION_OPEN_PANEL
-    }),
-    quad({
-      posn: "0 -4.7 1",
-      sizen: "8 0.6",
-      bgcolor: "08bf"
-    })
-  ];
+function renderSidebarEntryContent() {
+  return buildSidebarButton("SMX", ACTION_OPEN_PANEL);
 }
 
 function truncate(value: string, maxLength: number): string {

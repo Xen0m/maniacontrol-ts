@@ -1,5 +1,6 @@
 import type { ControllerPlugin, PluginContext } from "../plugin.js";
-import { frame, label, manialink, quad, renderManialink } from "../../ui/manialink.js";
+import { manialink, renderManialink } from "../../ui/manialink.js";
+import { buildStatusWidget } from "../../ui/maniacontrol-layout.js";
 
 const SHOOTMANIA_ELITE_TITLE = "SMStormElite@nadeolabs";
 const DEFAULT_HISTORY_LIMIT = 20;
@@ -382,73 +383,18 @@ function renderEliteStateWidget(state: EliteStateSnapshot): string {
 
   return renderManialink(
     manialink(ELITE_WIDGET_ID, [
-      frame(
-        {
-          posn: "132 76 5"
-        },
-        renderEliteStatusWidget(summaryLines, state)
+      buildStatusWidget(
+        "Elite",
+        summaryLines.slice(0, 4).map((line) => ({
+          label: stripColorCodes(line.labelText),
+          value: truncate(stripColorCodes(line.valueText), 24)
+        })),
+        `$0f0A ${state.stats.attackerWins}$fff / $f33D ${state.stats.defenderWins}$fff`,
+        "132 76 5",
+        "48 12.5"
       )
     ])
   );
-}
-
-function renderEliteStatusWidget(
-  lines: Array<{ labelText: string; valueText: string }>,
-  state: EliteStateSnapshot
-): Array<ReturnType<typeof quad> | ReturnType<typeof label>> {
-  const compactLines = lines.slice(0, 4);
-  return [
-    quad({
-      posn: "0 0 0",
-      sizen: "48 12.5",
-      halign: "right",
-      valign: "top",
-      style: "Bgs1InRace",
-      substyle: "BgTitleShadow"
-    }),
-    label({
-      posn: "-43 -1.1 2",
-      sizen: "24 2.5",
-      halign: "left",
-      style: "TextTitle1",
-      textcolor: "fff",
-      textsize: 1.1,
-      textemboss: "1",
-      text: "Elite"
-    }),
-    ...compactLines.flatMap((line, index) => {
-      const rowY = -3.3 - index * 2.2;
-      return [
-        label({
-          posn: "-43 " + rowY + " 2",
-          sizen: "10 2",
-          halign: "left",
-          textcolor: "ddd",
-          textsize: 0.8,
-          textemboss: "1",
-          text: stripColorCodes(line.labelText)
-        }),
-        label({
-          posn: "-31 " + rowY + " 2",
-          sizen: "26 2",
-          halign: "left",
-          textcolor: "fff",
-          textsize: 0.82,
-          textemboss: "1",
-          text: truncate(stripColorCodes(line.valueText), 24)
-        })
-      ];
-    }),
-    label({
-      posn: "-43 -11.2 2",
-      sizen: "38 2",
-      halign: "left",
-      textcolor: "fff",
-      textsize: 0.78,
-      textemboss: "1",
-      text: `$0f0A ${state.stats.attackerWins}$fff / $f33D ${state.stats.defenderWins}$fff`
-    })
-  ];
 }
 
 function truncate(value: string, maxLength: number): string {
