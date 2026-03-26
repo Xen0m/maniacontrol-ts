@@ -7,6 +7,9 @@ export interface AdminAuditEntry {
   method: string;
   path: string;
   client?: string;
+  actorId?: string;
+  actorLabel?: string;
+  actorRole?: string;
   success: boolean;
   detail?: Record<string, unknown>;
 }

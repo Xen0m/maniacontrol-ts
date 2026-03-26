@@ -12,6 +12,8 @@ import { ShootManiaElitePlugin } from "../plugins/builtin/shootmania-elite-plugi
 import { SseHub } from "./sse-hub.js";
 import { AdminAuditLog } from "./audit-log.js";
 
+type AdminRole = "owner" | "operator" | "observer";
+
 interface ControllerSnapshot {
   startedAt: string;
   version?: DedicatedVersion;
@@ -22,6 +24,17 @@ interface AdminAuditContext {
   action: string;
   success: boolean;
   detail?: Record<string, unknown>;
+}
+
+interface ResolvedAdminAuth {
+  id: string;
+  label?: string;
+  role: AdminRole;
+  scopes: string[];
+}
+
+interface AuthorizedIncomingMessage extends IncomingMessage {
+  adminAuth?: ResolvedAdminAuth;
 }
 
 interface AdminHttpServerOptions {
@@ -118,12 +131,14 @@ export class AdminHttpServer {
   private async handleRequest(request: IncomingMessage, response: ServerResponse): Promise<void> {
     const method = request.method ?? "GET";
     const url = new URL(request.url ?? "/", `http://${request.headers.host ?? "localhost"}`);
+    const auth = this.resolveAuthorization(request);
 
-    if (!this.isAuthorized(request)) {
+    if (!auth) {
       return this.writeJson(response, 401, {
         error: "unauthorized"
       });
     }
+    (request as AuthorizedIncomingMessage).adminAuth = auth;
 
     try {
       if (method === "GET" && url.pathname === "/health") {
@@ -133,6 +148,12 @@ export class AdminHttpServer {
           admin: {
             realtimeClients: this.sseHub.getClientCount()
           },
+          auth: {
+            id: auth.id,
+            label: auth.label,
+            role: auth.role,
+            scopes: auth.scopes
+          },
           dedicated: {
             version: this.getSnapshot().version,
             systemInfo: this.getSnapshot().systemInfo
@@ -141,6 +162,9 @@ export class AdminHttpServer {
       }
 
       if (method === "GET" && url.pathname === "/server/info") {
+        if (!this.hasScope(auth, "read")) {
+          return await this.writeForbidden(response, auth, "read");
+        }
         const status = await this.client.getStatus();
         const gameMode = await this.client.getGameMode();
         return await this.writeJson(response, 200, {
@@ -151,26 +175,41 @@ export class AdminHttpServer {
       }
 
       if (method === "GET" && url.pathname === "/server/mode-script-info") {
+        if (!this.hasScope(auth, "read")) {
+          return await this.writeForbidden(response, auth, "read");
+        }
         const modeScriptInfo = await this.client.getModeScriptInfo();
         return await this.writeJson(response, 200, modeScriptInfo);
       }
 
       if (method === "GET" && url.pathname === "/server/mode-script-settings") {
+        if (!this.hasScope(auth, "read")) {
+          return await this.writeForbidden(response, auth, "read");
+        }
         const settings = await this.client.getModeScriptSettings();
         return await this.writeJson(response, 200, settings);
       }
 
       if (method === "GET" && url.pathname === "/server/maps/current") {
+        if (!this.hasScope(auth, "read")) {
+          return await this.writeForbidden(response, auth, "read");
+        }
         const currentMap = await this.client.getCurrentMapInfo();
         return await this.writeJson(response, 200, currentMap);
       }
 
       if (method === "GET" && url.pathname === "/server/maps/next") {
+        if (!this.hasScope(auth, "read")) {
+          return await this.writeForbidden(response, auth, "read");
+        }
         const nextMap = await this.client.getNextMapInfo();
         return await this.writeJson(response, 200, nextMap);
       }
 
       if (method === "GET" && url.pathname === "/server/maps") {
+        if (!this.hasScope(auth, "read")) {
+          return await this.writeForbidden(response, auth, "read");
+        }
         const limit = clampInt(url.searchParams.get("limit"), 50, 1, 200);
         const offset = clampInt(url.searchParams.get("offset"), 0, 0, 10_000);
         const maps = await this.client.getMapList(limit, offset);
@@ -183,6 +222,9 @@ export class AdminHttpServer {
       }
 
       if (method === "GET" && url.pathname === "/server/players") {
+        if (!this.hasScope(auth, "read")) {
+          return await this.writeForbidden(response, auth, "read");
+        }
         const players = await this.client.getPlayerList(100, 0, 1);
         const detailedPlayers = await Promise.all(
           players.map(async (player) => {
@@ -204,6 +246,9 @@ export class AdminHttpServer {
       }
 
       if (method === "POST" && url.pathname === "/server/maps/choose-next") {
+        if (!this.hasScope(auth, "maps.write")) {
+          return await this.writeForbidden(response, auth, "maps.write");
+        }
         const body = await this.readJsonBody(request);
         const fileName = typeof body.fileName === "string" ? body.fileName.trim() : "";
         if (!fileName) {
@@ -224,6 +269,9 @@ export class AdminHttpServer {
       }
 
       if (method === "POST" && url.pathname === "/server/mode-script-settings") {
+        if (!this.hasScope(auth, "mode.write")) {
+          return await this.writeForbidden(response, auth, "mode.write");
+        }
         const body = await this.readJsonBody(request);
         const settings = isXmlRpcStruct(body.settings) ? body.settings : isXmlRpcStruct(body) ? body : null;
         if (!settings) {
@@ -242,6 +290,9 @@ export class AdminHttpServer {
       }
 
       if (method === "POST" && url.pathname === "/server/mode-script-commands") {
+        if (!this.hasScope(auth, "mode.write")) {
+          return await this.writeForbidden(response, auth, "mode.write");
+        }
         const body = await this.readJsonBody(request);
         const commands = isXmlRpcStruct(body.commands) ? body.commands : isXmlRpcStruct(body) ? body : null;
         if (!commands) {
@@ -259,6 +310,9 @@ export class AdminHttpServer {
       }
 
       if (method === "POST" && url.pathname === "/server/maps/jump") {
+        if (!this.hasScope(auth, "maps.write")) {
+          return await this.writeForbidden(response, auth, "maps.write");
+        }
         const body = await this.readJsonBody(request);
         const uId = typeof body.uId === "string" ? body.uId.trim() : "";
         if (!uId) {
@@ -279,6 +333,9 @@ export class AdminHttpServer {
       }
 
       if (method === "POST" && url.pathname === "/server/players/kick") {
+        if (!this.hasScope(auth, "players.write")) {
+          return await this.writeForbidden(response, auth, "players.write");
+        }
         const body = await this.readJsonBody(request);
         const login = typeof body.login === "string" ? body.login.trim() : "";
         const message = typeof body.message === "string" ? body.message : "";
@@ -296,6 +353,9 @@ export class AdminHttpServer {
       }
 
       if (method === "POST" && url.pathname === "/server/players/force-team") {
+        if (!this.hasScope(auth, "players.write")) {
+          return await this.writeForbidden(response, auth, "players.write");
+        }
         const body = await this.readJsonBody(request);
         const login = typeof body.login === "string" ? body.login.trim() : "";
         const team = typeof body.team === "number" ? body.team : Number(body.team);
@@ -313,6 +373,9 @@ export class AdminHttpServer {
       }
 
       if (method === "POST" && url.pathname === "/server/players/force-spectator") {
+        if (!this.hasScope(auth, "players.write")) {
+          return await this.writeForbidden(response, auth, "players.write");
+        }
         const body = await this.readJsonBody(request);
         const login = typeof body.login === "string" ? body.login.trim() : "";
         const mode = typeof body.mode === "number" ? body.mode : Number(body.mode);
@@ -330,6 +393,9 @@ export class AdminHttpServer {
       }
 
       if (method === "GET" && url.pathname === "/elite/state") {
+        if (!this.hasScope(auth, "read")) {
+          return await this.writeForbidden(response, auth, "read");
+        }
         const elitePlugin = this.getElitePlugin();
         if (!elitePlugin) {
           return this.writeJson(response, 503, { error: "shootmania-elite plugin is not enabled" });
@@ -338,6 +404,9 @@ export class AdminHttpServer {
       }
 
       if (method === "POST" && url.pathname === "/elite/pause") {
+        if (!this.hasScope(auth, "elite.write")) {
+          return await this.writeForbidden(response, auth, "elite.write");
+        }
         const elitePlugin = this.getElitePlugin();
         if (!elitePlugin) {
           return this.writeJson(response, 503, { error: "shootmania-elite plugin is not enabled" });
@@ -351,6 +420,9 @@ export class AdminHttpServer {
       }
 
       if (method === "POST" && url.pathname === "/elite/resume") {
+        if (!this.hasScope(auth, "elite.write")) {
+          return await this.writeForbidden(response, auth, "elite.write");
+        }
         const elitePlugin = this.getElitePlugin();
         if (!elitePlugin) {
           return this.writeJson(response, 503, { error: "shootmania-elite plugin is not enabled" });
@@ -364,6 +436,9 @@ export class AdminHttpServer {
       }
 
       if (method === "GET" && url.pathname === "/mx/search") {
+        if (!this.hasScope(auth, "read")) {
+          return await this.writeForbidden(response, auth, "read");
+        }
         const mxPlugin = this.getManiaExchangePlugin();
         if (!mxPlugin) {
           return this.writeJson(response, 503, { error: "maniaexchange plugin is not enabled" });
@@ -377,6 +452,9 @@ export class AdminHttpServer {
       }
 
       if (method === "POST" && url.pathname === "/mx/import") {
+        if (!this.hasScope(auth, "mx.write")) {
+          return await this.writeForbidden(response, auth, "mx.write");
+        }
         const mxPlugin = this.getManiaExchangePlugin();
         if (!mxPlugin) {
           return this.writeJson(response, 503, { error: "maniaexchange plugin is not enabled" });
@@ -402,6 +480,9 @@ export class AdminHttpServer {
       }
 
       if (method === "GET" && url.pathname === "/admin/audit") {
+        if (!this.hasScope(auth, "audit.read")) {
+          return await this.writeForbidden(response, auth, "audit.read");
+        }
         const limit = clampInt(url.searchParams.get("limit"), 100, 1, 500);
         const entries = await this.auditLog.readRecent(limit);
         return await this.writeJson(response, 200, {
@@ -411,6 +492,9 @@ export class AdminHttpServer {
       }
 
       if (method === "GET" && url.pathname === "/events") {
+        if (!this.hasScope(auth, "read")) {
+          return await this.writeForbidden(response, auth, "read");
+        }
         response.writeHead(200, {
           "Content-Type": "text/event-stream",
           "Cache-Control": "no-cache, no-transform",
@@ -440,13 +524,54 @@ export class AdminHttpServer {
     }
   }
 
-  private isAuthorized(request: IncomingMessage): boolean {
+  private resolveAuthorization(request: IncomingMessage): ResolvedAdminAuth | null {
     const header = request.headers.authorization;
     if (!header) {
-      return false;
+      return null;
     }
     const [scheme, token] = header.split(/\s+/, 2);
-    return scheme === "Bearer" && token === this.config.token;
+    if (scheme !== "Bearer" || !token) {
+      return null;
+    }
+
+    for (const principal of this.config.principals ?? []) {
+      if (principal.token !== token) {
+        continue;
+      }
+      return {
+        id: principal.id,
+        label: principal.label,
+        role: principal.role,
+        scopes: principal.scopes.length > 0 ? principal.scopes : defaultScopesForRole(principal.role)
+      };
+    }
+
+    if (this.config.token && token === this.config.token) {
+      return {
+        id: "legacy-admin",
+        label: "Legacy Admin Token",
+        role: "owner",
+        scopes: ["*"]
+      };
+    }
+
+    return null;
+  }
+
+  private hasScope(auth: ResolvedAdminAuth, scope: string): boolean {
+    return hasAdminScope(auth.scopes, scope);
+  }
+
+  private async writeForbidden(
+    response: ServerResponse,
+    auth: ResolvedAdminAuth,
+    requiredScope: string
+  ): Promise<void> {
+    await this.writeJson(response, 403, {
+      error: "forbidden",
+      role: auth.role,
+      requiredScope
+    });
   }
 
   private async readJsonBody(request: IncomingMessage): Promise<Record<string, unknown>> {
@@ -474,12 +599,16 @@ export class AdminHttpServer {
     audit?: AdminAuditContext
   ): Promise<void> {
     if (audit) {
+      const auth = (response.req as AuthorizedIncomingMessage | undefined)?.adminAuth;
       await this.auditLog.append({
         timestamp: new Date().toISOString(),
         action: audit.action,
         method: response.req?.method ?? "UNKNOWN",
         path: response.req?.url ?? "",
         client: response.req?.socket.remoteAddress,
+        actorId: auth?.id,
+        actorLabel: auth?.label,
+        actorRole: auth?.role,
         success: audit.success,
         detail: audit.detail
       });
@@ -599,6 +728,38 @@ function formatAdminActionChatMessage(
     default:
       return null;
   }
+}
+
+function defaultScopesForRole(role: AdminRole): string[] {
+  if (role === "owner") {
+    return ["*"];
+  }
+  if (role === "operator") {
+    return [
+      "read",
+      "players.write",
+      "maps.write",
+      "elite.write",
+      "mode.write",
+      "mx.write",
+      "audit.read"
+    ];
+  }
+  return ["read"];
+}
+
+function hasAdminScope(scopes: string[], requiredScope: string): boolean {
+  const normalizedScopes = scopes.filter(Boolean);
+  if (normalizedScopes.includes("*") || normalizedScopes.includes(requiredScope)) {
+    return true;
+  }
+
+  const [prefix] = requiredScope.split(".", 1);
+  if (prefix && normalizedScopes.includes(`${prefix}.*`)) {
+    return true;
+  }
+
+  return false;
 }
 
 function isXmlRpcStruct(value: unknown): value is Record<string, XmlRpcValue> {

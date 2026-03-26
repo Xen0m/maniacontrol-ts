@@ -6,6 +6,14 @@ export const pluginConfigSchema = z.object({
   settings: z.record(z.string(), z.unknown()).optional()
 });
 
+export const adminPrincipalConfigSchema = z.object({
+  id: z.string().min(1),
+  label: z.string().min(1).optional(),
+  role: z.enum(["owner", "operator", "observer"]).default("operator"),
+  token: z.string().min(1),
+  scopes: z.array(z.string().min(1)).default(["read"])
+});
+
 export const appConfigSchema = z.object({
   server: z.object({
     host: z.string().min(1),
@@ -24,10 +32,14 @@ export const appConfigSchema = z.object({
     enabled: z.boolean().default(false),
     host: z.string().min(1).default("127.0.0.1"),
     port: z.number().int().positive().default(3001),
-    token: z.string().min(1),
+    token: z.string().min(1).optional(),
+    principals: z.array(adminPrincipalConfigSchema).default([]),
     auditPath: z.string().min(1).default("./data/admin-audit.jsonl"),
     chatLoggingEnabled: z.boolean().default(false)
-  }).optional(),
+  }).refine(
+    (value) => Boolean(value.token) || value.principals.length > 0,
+    "admin.token or admin.principals must be configured"
+  ).optional(),
   storage: z.object({
     driver: z.enum(["sqlite", "postgres"]).default("sqlite"),
     url: z.string().min(1)
@@ -37,3 +49,4 @@ export const appConfigSchema = z.object({
 
 export type AppConfig = z.infer<typeof appConfigSchema>;
 export type PluginConfig = z.infer<typeof pluginConfigSchema>;
+export type AdminPrincipalConfig = z.infer<typeof adminPrincipalConfigSchema>;

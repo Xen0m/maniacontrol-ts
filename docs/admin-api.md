@@ -10,10 +10,29 @@ Private HTTP API intended for `maniacontrol-companion`.
 - `host`
 - `port`
 - `token`
+- `principals`
 - `auditPath`
 - `chatLoggingEnabled`
 
 When `chatLoggingEnabled` is `true`, successful write actions are also announced in the dedicated server chat.
+
+`token` keeps the current full-access behavior. `principals` can be used to define multiple bearer tokens with roles/scopes.
+
+Supported built-in roles:
+
+- `owner`
+- `operator`
+- `observer`
+
+Typical scopes:
+
+- `read`
+- `audit.read`
+- `players.write`
+- `maps.write`
+- `elite.write`
+- `mode.write`
+- `mx.write`
 
 ## Auth
 
@@ -28,6 +47,13 @@ Authorization: Bearer <token>
 ### `GET /health`
 
 Returns process and dedicated-session health summary.
+
+Also includes the resolved admin identity for the current bearer token:
+
+- `auth.id`
+- `auth.label`
+- `auth.role`
+- `auth.scopes`
 
 ### `GET /server/info`
 
@@ -148,6 +174,26 @@ SSE stream for companion realtime updates.
 ### `GET /admin/audit?limit=100`
 
 Returns recent persisted admin actions from the audit log.
+
+## Authorization model
+
+- read endpoints require `read`
+- audit trail requires `audit.read`
+- player actions require `players.write`
+- map actions require `maps.write`
+- Elite controls require `elite.write`
+- mode script edits require `mode.write`
+- SMX imports require `mx.write`
+
+Missing scope returns:
+
+```json
+{
+  "error": "forbidden",
+  "role": "observer",
+  "requiredScope": "players.write"
+}
+```
 
 ### `POST /server/players/kick`
 

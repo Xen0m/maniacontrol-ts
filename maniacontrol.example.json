@@ -17,6 +17,33 @@
     "host": "127.0.0.1",
     "port": 3001,
     "token": "replace-with-a-strong-token",
+    "principals": [
+      {
+        "id": "observer-ui",
+        "label": "Observer UI",
+        "role": "observer",
+        "token": "replace-with-a-readonly-token",
+        "scopes": [
+          "read",
+          "audit.read"
+        ]
+      },
+      {
+        "id": "operator-ui",
+        "label": "Operator UI",
+        "role": "operator",
+        "token": "replace-with-an-operator-token",
+        "scopes": [
+          "read",
+          "audit.read",
+          "players.write",
+          "maps.write",
+          "elite.write",
+          "mode.write",
+          "mx.write"
+        ]
+      }
+    ],
     "auditPath": "./data/admin-audit.jsonl",
     "chatLoggingEnabled": false
   },
