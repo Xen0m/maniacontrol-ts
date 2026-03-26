@@ -113,7 +113,18 @@ export class ShootManiaElitePlugin implements ControllerPlugin {
     context.callbacks.on("ManiaPlanet.BeginMap", () => {
       this.resetState();
       this.emitStateChanged("map-reset");
+      context.logger.info("Re-rendering Elite widget after BeginMap");
       void this.renderWidget();
+    });
+
+    context.callbacks.on("ManiaPlanet.PlayerConnect", (event) => {
+      const login = typeof event.params[0] === "string" ? event.params[0] : undefined;
+      if (!login || !this.settings.showWidget) {
+        return;
+      }
+
+      context.logger.info({ login }, "Sending Elite widget to connected player");
+      void this.renderWidget([login]);
     });
 
     context.callbacks.on("Maniaplanet.Pause.Status", (event) => {
@@ -249,13 +260,18 @@ export class ShootManiaElitePlugin implements ControllerPlugin {
     }
   }
 
-  private async renderWidget(): Promise<void> {
+  private async renderWidget(recipients?: string[]): Promise<void> {
     if (!this.context || !this.settings.showWidget) {
       return;
     }
 
     const xml = renderEliteStateWidget(this.state);
-    await this.context.ui.showWidget(xml);
+    if (recipients && recipients.length > 0) {
+      this.context.logger.debug({ recipients }, "Rendering Elite widget to specific recipients");
+    } else {
+      this.context.logger.debug("Rendering Elite widget globally");
+    }
+    await this.context.ui.showWidget(xml, recipients);
     this.context.ui.logWidgetUpdate(ELITE_WIDGET_ID);
   }
 }
@@ -344,7 +360,7 @@ function renderEliteStateWidget(state: EliteStateSnapshot): string {
     manialink(ELITE_WIDGET_ID, [
       frame(
         {
-          posn: "138 70 1"
+          posn: "126 62 1"
         },
         [
           quad({
