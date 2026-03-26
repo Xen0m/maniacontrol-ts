@@ -20,6 +20,14 @@ Returns process and dedicated-session health summary.
 
 Returns startup snapshot plus current dedicated status and game mode.
 
+### `GET /server/mode-script-info`
+
+Returns the current mode script metadata and available command descriptors.
+
+### `GET /server/mode-script-settings`
+
+Returns the current mode script settings payload as reported by the dedicated server.
+
 ### `GET /server/players`
 
 Returns the current connected players with enriched detailed info when available.
@@ -43,6 +51,44 @@ Example body:
 ```json
 {
   "fileName": "MatchSettings\\My Maps\\example.Map.Gbx"
+}
+```
+
+### `POST /server/mode-script-settings`
+
+```json
+{
+  "S_TimeLimit": 60000,
+  "S_ScoreLimit": 9
+}
+```
+
+or
+
+```json
+{
+  "settings": {
+    "S_TimeLimit": 60000,
+    "S_ScoreLimit": 9
+  }
+}
+```
+
+### `POST /server/mode-script-commands`
+
+```json
+{
+  "Command_SetPause": true
+}
+```
+
+or
+
+```json
+{
+  "commands": {
+    "Command_SetPause": true
+  }
 }
 ```
 
@@ -128,6 +174,8 @@ Current event types:
 - `server.endMap`
 - `server.nextMapChanged`
 - `server.mapJumped`
+- `server.modeScriptSettingsChanged`
+- `server.modeScriptCommandsSent`
 - `server.playerConnect`
 - `server.playerDisconnect`
 - `server.playerKicked`

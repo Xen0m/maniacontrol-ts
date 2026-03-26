@@ -6,6 +6,7 @@ import type { Logger } from "pino";
 import type { AppConfig } from "../config/schema.js";
 import type { CallbackBus } from "../core/callbacks.js";
 import type { DedicatedClient, DedicatedSystemInfo, DedicatedVersion } from "../transport/dedicated-client.js";
+import type { XmlRpcValue } from "../xmlrpc/types.js";
 import { ManiaExchangePlugin } from "../plugins/builtin/maniaexchange-plugin.js";
 import { ShootManiaElitePlugin } from "../plugins/builtin/shootmania-elite-plugin.js";
 import { SseHub } from "./sse-hub.js";
@@ -143,6 +144,16 @@ export class AdminHttpServer {
         });
       }
 
+      if (method === "GET" && url.pathname === "/server/mode-script-info") {
+        const modeScriptInfo = await this.client.getModeScriptInfo();
+        return await this.writeJson(response, 200, modeScriptInfo);
+      }
+
+      if (method === "GET" && url.pathname === "/server/mode-script-settings") {
+        const settings = await this.client.getModeScriptSettings();
+        return await this.writeJson(response, 200, settings);
+      }
+
       if (method === "GET" && url.pathname === "/server/maps/current") {
         const currentMap = await this.client.getCurrentMapInfo();
         return await this.writeJson(response, 200, currentMap);
@@ -203,6 +214,41 @@ export class AdminHttpServer {
           action: "server.maps.choose-next",
           success: true,
           detail: { fileName }
+        });
+      }
+
+      if (method === "POST" && url.pathname === "/server/mode-script-settings") {
+        const body = await this.readJsonBody(request);
+        const settings = isXmlRpcStruct(body.settings) ? body.settings : isXmlRpcStruct(body) ? body : null;
+        if (!settings) {
+          return await this.writeJson(response, 400, { error: "settings object is required" });
+        }
+
+        await this.client.setModeScriptSettings(settings);
+        const nextSettings = await this.client.getModeScriptSettings();
+        this.sseHub.publish("server.modeScriptSettingsChanged", {
+          settings: nextSettings
+        });
+        return await this.writeJson(response, 200, nextSettings, {
+          action: "server.mode-script-settings.update",
+          success: true
+        });
+      }
+
+      if (method === "POST" && url.pathname === "/server/mode-script-commands") {
+        const body = await this.readJsonBody(request);
+        const commands = isXmlRpcStruct(body.commands) ? body.commands : isXmlRpcStruct(body) ? body : null;
+        if (!commands) {
+          return await this.writeJson(response, 400, { error: "commands object is required" });
+        }
+
+        await this.client.sendModeScriptCommands(commands);
+        this.sseHub.publish("server.modeScriptCommandsSent", {
+          commands
+        });
+        return await this.writeJson(response, 200, { ok: true, commands }, {
+          action: "server.mode-script-commands.send",
+          success: true
         });
       }
 
@@ -445,4 +491,33 @@ function clampInt(value: string | null, fallback: number, min: number, max: numb
     return fallback;
   }
   return Math.min(max, Math.max(min, parsed));
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isXmlRpcValue(value: unknown): value is XmlRpcValue {
+  if (
+    value === null ||
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  ) {
+    return true;
+  }
+
+  if (Array.isArray(value)) {
+    return value.every((item) => isXmlRpcValue(item));
+  }
+
+  if (isRecord(value)) {
+    return Object.values(value).every((item) => isXmlRpcValue(item));
+  }
+
+  return false;
+}
+
+function isXmlRpcStruct(value: unknown): value is Record<string, XmlRpcValue> {
+  return isRecord(value) && Object.values(value).every((item) => isXmlRpcValue(item));
 }
