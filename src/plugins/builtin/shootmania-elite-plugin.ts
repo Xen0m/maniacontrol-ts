@@ -1,4 +1,5 @@
 import type { ControllerPlugin, PluginContext } from "../plugin.js";
+import type { PlayerChatEvent } from "../../core/callbacks.js";
 import { label, manialink, renderManialink } from "../../ui/manialink.js";
 import { MANIACONTROL_STYLES, WINDOW_DEFAULTS } from "../../ui/maniacontrol-style.js";
 import { buildStatusWindow } from "../../ui/window-manager.js";
@@ -161,6 +162,10 @@ export class ShootManiaElitePlugin implements ControllerPlugin {
       const payload = event.payload as EliteEndTurnPayload | undefined;
       this.handleEliteEndTurn(payload);
     });
+
+    context.callbacks.on("player-chat:command", (event) => {
+      void this.handleChatCommand(event as PlayerChatEvent);
+    });
   }
 
   private resetState(): void {
@@ -265,6 +270,45 @@ export class ShootManiaElitePlugin implements ControllerPlugin {
     if (this.settings.logStateSnapshots) {
       this.context.logger.debug({ reason, state: snapshot }, "Elite state updated");
     }
+  }
+
+  private async handleChatCommand(event: PlayerChatEvent): Promise<void> {
+    if (!this.context || !event.login || !event.commandText) {
+      return;
+    }
+
+    const [root, subcommand] = event.commandText.split(/\s+/);
+    if (root?.toLowerCase() !== "elite") {
+      return;
+    }
+
+    if (!subcommand || subcommand.toLowerCase() === "help") {
+      await this.context.ui.sendInfo("Elite commands: /elite pause, /elite resume", [event.login]);
+      return;
+    }
+
+    if (!this.state.pauseSupported) {
+      await this.context.ui.sendError("Pause is not supported by the current mode.", [event.login]);
+      return;
+    }
+
+    if (subcommand.toLowerCase() === "pause") {
+      await this.context.client.setPauseActive(true);
+      this.state.paused = true;
+      await this.context.ui.sendSuccess("Elite match paused.", [event.login]);
+      void this.renderWidgetForActivePlayers();
+      return;
+    }
+
+    if (subcommand.toLowerCase() === "resume") {
+      await this.context.client.setPauseActive(false);
+      this.state.paused = false;
+      await this.context.ui.sendSuccess("Elite match resumed.", [event.login]);
+      void this.renderWidgetForActivePlayers();
+      return;
+    }
+
+    await this.context.ui.sendError(`Unknown Elite command: ${subcommand}`, [event.login]);
   }
 
   public async stop(): Promise<void> {

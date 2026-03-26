@@ -24,6 +24,14 @@ export interface PlayerManialinkPageAnswerEvent extends DedicatedCallbackEvent {
   entries: ManialinkEntryValue[];
 }
 
+export interface PlayerChatEvent extends DedicatedCallbackEvent {
+  playerUid?: number;
+  login?: string;
+  message?: string;
+  isRegisteredCommand: boolean;
+  commandText?: string;
+}
+
 export class CallbackBus extends EventEmitter {
   public dispatch(callback: XmlRpcCallMessage): void {
     const event = {
@@ -47,6 +55,25 @@ export class CallbackBus extends EventEmitter {
       this.emit("manialink-answer", pageAnswerEvent);
       if (pageAnswerEvent.answer) {
         this.emit(`manialink-answer:${pageAnswerEvent.answer}`, pageAnswerEvent);
+      }
+    }
+
+    if (callback.method === "ManiaPlanet.PlayerChat") {
+      const rawMessage = typeof callback.params[2] === "string" ? callback.params[2] : undefined;
+      const isRegisteredCommand = callback.params[3] === true;
+      const chatEvent = {
+        method: callback.method,
+        params: callback.params,
+        playerUid: typeof callback.params[0] === "number" ? callback.params[0] : undefined,
+        login: typeof callback.params[1] === "string" ? callback.params[1] : undefined,
+        message: rawMessage,
+        isRegisteredCommand,
+        commandText: normalizeCommandText(rawMessage, isRegisteredCommand)
+      } satisfies PlayerChatEvent;
+
+      this.emit("player-chat", chatEvent);
+      if (chatEvent.commandText) {
+        this.emit("player-chat:command", chatEvent);
       }
     }
 
@@ -118,4 +145,25 @@ function tryParseJson(value: string): unknown {
   } catch {
     return value;
   }
+}
+
+function normalizeCommandText(message: string | undefined, isRegisteredCommand: boolean): string | undefined {
+  if (!message) {
+    return undefined;
+  }
+
+  const trimmed = message.trim();
+  if (trimmed.length === 0) {
+    return undefined;
+  }
+
+  if (isRegisteredCommand) {
+    return trimmed.startsWith("/") ? trimmed.slice(1).trim() : trimmed;
+  }
+
+  if (!trimmed.startsWith("/")) {
+    return undefined;
+  }
+
+  return trimmed.slice(1).trim();
 }

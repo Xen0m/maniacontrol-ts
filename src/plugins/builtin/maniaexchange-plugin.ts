@@ -1,4 +1,4 @@
-import type { PlayerManialinkPageAnswerEvent } from "../../core/callbacks.js";
+import type { PlayerChatEvent, PlayerManialinkPageAnswerEvent } from "../../core/callbacks.js";
 import { frame, manialink, renderManialink } from "../../ui/manialink.js";
 import { buildDefaultListRows, buildDefaultMapSearch } from "../../ui/list-helpers.js";
 import { SidebarMenuManager } from "../../ui/sidebar-menu-manager.js";
@@ -80,6 +80,10 @@ export class ManiaExchangePlugin implements ControllerPlugin {
 
     context.callbacks.on("manialink-answer", (event) => {
       void this.handleManialinkAnswer(event as PlayerManialinkPageAnswerEvent);
+    });
+
+    context.callbacks.on("player-chat:command", (event) => {
+      void this.handleChatCommand(event as PlayerChatEvent);
     });
 
     context.callbacks.on("ManiaPlanet.PlayerConnect", (event) => {
@@ -182,6 +186,54 @@ export class ManiaExchangePlugin implements ControllerPlugin {
     }
   }
 
+  private async handleChatCommand(event: PlayerChatEvent): Promise<void> {
+    if (!this.context || !event.login || !event.commandText) {
+      return;
+    }
+
+    const [root, subcommand, ...rest] = event.commandText.split(/\s+/);
+    if (root?.toLowerCase() !== "mx") {
+      return;
+    }
+
+    if (!subcommand || subcommand.toLowerCase() === "help") {
+      await this.context.ui.sendInfo(
+        "MX commands: /mx open, /mx search <query>, /mx add <mapId>",
+        [event.login]
+      );
+      return;
+    }
+
+    if (subcommand.toLowerCase() === "open") {
+      await this.openPanel(event.login);
+      return;
+    }
+
+    if (subcommand.toLowerCase() === "search") {
+      const query = rest.join(" ").trim();
+      if (!query) {
+        await this.context.ui.sendError("Usage: /mx search <query>", [event.login]);
+        return;
+      }
+
+      await this.searchAndRender(event.login, query);
+      return;
+    }
+
+    if (subcommand.toLowerCase() === "add" || subcommand.toLowerCase() === "import") {
+      const mapId = Number(rest[0]);
+      if (!Number.isInteger(mapId) || mapId <= 0) {
+        await this.context.ui.sendError("Usage: /mx add <mapId>", [event.login]);
+        return;
+      }
+
+      await this.importAndRender(event.login, mapId);
+      return;
+    }
+
+    await this.context.ui.sendError(`Unknown MX command: ${subcommand}`, [event.login]);
+  }
+
   private async openPanel(login: string): Promise<void> {
     const state = this.getPlayerState(login);
     await this.renderSidebarEntry([login]);
@@ -231,9 +283,11 @@ export class ManiaExchangePlugin implements ControllerPlugin {
         [login]
       );
       state.results = state.results.filter((map) => map.mapId !== mapId);
+      await this.context?.ui.sendSuccess(`Imported MX map #${result.map.mapId}`, [login]);
     } catch (error) {
       this.context?.logger.error({ error, login, mapId }, "SMX import failed from panel");
       state.error = `Import failed for #${mapId}`;
+      await this.context?.ui.sendError(`Import failed for #${mapId}`, [login]);
     } finally {
       state.busy = false;
     }

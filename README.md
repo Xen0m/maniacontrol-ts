@@ -28,6 +28,7 @@ This is not a drop-in replacement yet. It includes:
 - one built-in ShootMania Elite state plugin
 - one built-in ManiaExchange import plugin
 - a lightweight TypeScript-only in-game UI layer for chat and manialink widgets
+- a shared ManiaControl-like UI foundation for sidebar entries, windows, and list/search panels
 - architecture and migration notes
 
 ## Local development
@@ -45,6 +46,18 @@ The project now includes a first SMX integration layer:
 - `npm run mx:import -- <mapId> --maps-dir "/abs/path/to/server/UserData/Maps/My Maps/SMX" --target-dir "My Maps\\SMX" --config maniacontrol.local.json`
 
 There is also a built-in `maniaexchange` plugin that can import configured map IDs on startup.
+
+## Chat commands
+
+The controller now exposes a first chat-command fallback for common actions:
+
+- `/mx open`
+- `/mx search <query>`
+- `/mx add <mapId>`
+- `/elite pause`
+- `/elite resume`
+
+See [docs/ui-framework.md](./docs/ui-framework.md) for the shared UI architecture and validation checklist.
 
 ## Initial target architecture
 

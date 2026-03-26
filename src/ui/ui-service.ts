@@ -18,11 +18,27 @@ export class UIService {
     await this.client.chatSendServerMessage(`${DEFAULT_CHAT_PREFIX}${message}$>`, recipients);
   }
 
+  public async sendSuccess(message: string, recipients?: string[]): Promise<void> {
+    await this.sendInfo(`$8f8${message}$fff`, recipients);
+  }
+
+  public async sendError(message: string, recipients?: string[]): Promise<void> {
+    await this.sendInfo(`$f88${message}$fff`, recipients);
+  }
+
   public async sendNotice(message: string, recipients?: string[]): Promise<void> {
     await this.client.sendNotice(message, recipients);
   }
 
   public async showWidget(xml: string, recipients?: string[]): Promise<void> {
+    this.logger.debug(
+      {
+        widgetId: extractManialinkId(xml),
+        recipients,
+        xmlPreview: xml.slice(0, 160)
+      },
+      "Dispatching widget"
+    );
     await this.client.sendDisplayManialinkPage(xml, recipients, 0, false);
   }
 
@@ -37,4 +53,9 @@ export class UIService {
   public logWidgetUpdate(widgetId: string): void {
     this.logger.debug({ widgetId }, "Widget updated");
   }
+}
+
+function extractManialinkId(xml: string): string | undefined {
+  const match = xml.match(/<manialink[^>]* id="([^"]+)"/i);
+  return match?.[1];
 }
