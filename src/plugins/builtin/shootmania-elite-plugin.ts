@@ -402,7 +402,7 @@ function renderEliteStateWidget(state: EliteStateSnapshot, collapsed = false): s
     manialink(ELITE_WIDGET_ID, [
       frame(
         {
-          posn: "116 50 1"
+          posn: "140 74 1"
         },
         collapsed ? renderCollapsedEliteWidget() : renderExpandedEliteWidget(summaryLines, state)
       )
@@ -414,81 +414,73 @@ function renderExpandedEliteWidget(
   lines: Array<{ labelText: string; valueText: string }>,
   state: EliteStateSnapshot
 ): Array<ReturnType<typeof quad> | ReturnType<typeof label>> {
+  const compactLines = lines.slice(0, 4);
   return [
     quad({
       posn: "0 0 0",
-      sizen: "46 26",
+      sizen: "34 12",
       halign: "right",
       valign: "top",
-      bgcolor: "000c"
-    }),
-    quad({
-      posn: "0 0 1",
-      sizen: "46 3.6",
-      halign: "right",
-      valign: "top",
-      bgcolor: "08bf"
-    }),
-    quad({
-      posn: "-42.8 -0.65 2",
-      sizen: "3.2 2.2",
-      bgcolor: "fff3"
+      style: "Bgs1InRace",
+      substyle: "BgTitleShadow"
     }),
     label({
-      posn: "-37.5 -1.05 2",
-      sizen: "26 3",
+      posn: "-31 -1.2 2",
+      sizen: "26 2.5",
       halign: "left",
-      textsize: 1.15,
+      style: "TextTitle1",
+      textcolor: "fff",
+      textsize: 1,
       textemboss: "1",
-      text: "$fffELITE CONTROL"
+      text: "Elite"
     }),
     quad({
-      posn: "-4.8 -0.65 2",
-      sizen: "3 2.2",
-      bgcolor: "000a",
+      posn: "-4 -1.2 2",
+      sizen: "2.5 2.2",
+      style: "Bgs1InRace",
+      substyle: "BgCard1",
       action: ACTION_TOGGLE_WIDGET
     }),
     label({
-      posn: "-4.1 -0.95 3",
+      posn: "-3.5 -1.38 3",
       sizen: "2 2",
-      textsize: 0.95,
+      textcolor: "fff",
+      textsize: 0.8,
       textemboss: "1",
       text: "$fff–",
       action: ACTION_TOGGLE_WIDGET
     }),
-    ...lines.flatMap((line, index) => {
-      const rowY = -5.8 - index * 3.7;
+    ...compactLines.flatMap((line, index) => {
+      const rowY = -3.8 - index * 2.1;
       return [
         label({
-          posn: "-42 " + rowY + " 2",
-          sizen: "11 3",
+          posn: "-31 " + rowY + " 2",
+          sizen: "8 2",
           halign: "left",
-          textsize: 0.9,
+          textcolor: "ddd",
+          textsize: 0.75,
           textemboss: "1",
           text: line.labelText
         }),
         label({
-          posn: "-28.5 " + rowY + " 2",
-          sizen: "24 3",
+          posn: "-21 " + rowY + " 2",
+          sizen: "18 2",
           halign: "left",
-          textsize: 0.95,
+          textcolor: "fff",
+          textsize: 0.78,
           textemboss: "1",
-          text: line.valueText
+          text: truncate(stripColorCodes(line.valueText), 18)
         })
       ];
     }),
-    quad({
-      posn: "-42 -24.1 1",
-      sizen: "38 2.8",
-      bgcolor: "fff2"
-    }),
     label({
-      posn: "-40.5 -24.65 2",
-      sizen: "36 2.5",
+      posn: "-31 -11.1 2",
+      sizen: "28 2",
       halign: "left",
-      textsize: 0.9,
+      textcolor: "fff",
+      textsize: 0.75,
       textemboss: "1",
-      text: `$0f0A ${state.stats.attackerWins}$fff  ·  $f33D ${state.stats.defenderWins}$fff  ·  $999Done $fff${state.stats.turnsCompleted}`
+      text: `$0f0A ${state.stats.attackerWins}$fff / $f33D ${state.stats.defenderWins}$fff`
     })
   ];
 }
@@ -497,33 +489,29 @@ function renderCollapsedEliteWidget(): Array<ReturnType<typeof quad> | ReturnTyp
   return [
     quad({
       posn: "0 0 0",
-      sizen: "16 3.8",
+      sizen: "12 3.4",
       halign: "right",
       valign: "top",
-      bgcolor: "000c",
-      action: ACTION_TOGGLE_WIDGET
-    }),
-    quad({
-      posn: "0 0 1",
-      sizen: "16 0.8",
-      halign: "right",
-      valign: "top",
-      bgcolor: "08bf",
+      style: "Bgs1InRace",
+      substyle: "BgTitleShadow",
       action: ACTION_TOGGLE_WIDGET
     }),
     label({
-      posn: "-13.5 -1.05 2",
-      sizen: "11 2",
+      posn: "-10 -1.1 2",
+      sizen: "8 2",
       halign: "left",
-      textsize: 0.95,
+      style: "TextTitle1",
+      textcolor: "fff",
+      textsize: 0.75,
       textemboss: "1",
-      text: "$fffELITE",
+      text: "Elite",
       action: ACTION_TOGGLE_WIDGET
     }),
     label({
-      posn: "-3.2 -1 2",
+      posn: "-2.4 -1.08 2",
       sizen: "3 2",
-      textsize: 0.95,
+      textcolor: "fff",
+      textsize: 0.8,
       textemboss: "1",
       text: "$fff+",
       action: ACTION_TOGGLE_WIDGET
@@ -544,6 +532,10 @@ function shouldRenderCollapsed(
 
 function truncate(value: string, maxLength: number): string {
   return value.length > maxLength ? `${value.slice(0, maxLength - 1)}…` : value;
+}
+
+function stripColorCodes(value: string): string {
+  return value.replaceAll(/\$[0-9a-fk-orzs]/gi, "");
 }
 
 function formatPauseState(paused: boolean | null, supported: boolean): string {
