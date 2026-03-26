@@ -65,6 +65,12 @@ export interface DedicatedPlayerDetailedInfo {
   isPodiumReady?: boolean;
 }
 
+export interface DedicatedSimpleLoginEntry {
+  login?: string;
+  nickName?: string;
+  ipAddress?: string;
+}
+
 export class DedicatedClient {
   private readonly transport: GbxRemoteClient;
   private readonly logger: Logger;
@@ -284,6 +290,60 @@ export class DedicatedClient {
 
   public async forceSpectator(login: string, mode: 0 | 1 | 2 | 3): Promise<void> {
     await this.callBoolean("ForceSpectator", [login, mode]);
+  }
+
+  public async ban(login: string, message = ""): Promise<void> {
+    await this.callBoolean("Ban", [login, message]);
+  }
+
+  public async banAndBlackList(login: string, message = "", save = false): Promise<void> {
+    await this.callBoolean("BanAndBlackList", [login, message, save]);
+  }
+
+  public async unBan(login: string): Promise<void> {
+    await this.callBoolean("UnBan", [login]);
+  }
+
+  public async getBanList(length = 100, offset = 0): Promise<DedicatedSimpleLoginEntry[]> {
+    const result = await this.transport.call("GetBanList", [length, offset]);
+    if (!Array.isArray(result)) {
+      throw new Error("GetBanList returned an unexpected payload");
+    }
+
+    return result
+      .filter((item): item is Record<string, XmlRpcValue> => {
+        return typeof item === "object" && item !== null && !Array.isArray(item);
+      })
+      .map((item) => ({
+        login: readString(item, "Login") ?? readString(item, "login"),
+        nickName: readString(item, "ClientName") ?? readString(item, "nickName"),
+        ipAddress: readString(item, "IPAddress") ?? readString(item, "ipAddress")
+      }));
+  }
+
+  public async blackList(login: string): Promise<void> {
+    await this.callBoolean("BlackList", [login]);
+  }
+
+  public async unBlackList(login: string): Promise<void> {
+    await this.callBoolean("UnBlackList", [login]);
+  }
+
+  public async getBlackList(length = 100, offset = 0): Promise<DedicatedSimpleLoginEntry[]> {
+    const result = await this.transport.call("GetBlackList", [length, offset]);
+    if (!Array.isArray(result)) {
+      throw new Error("GetBlackList returned an unexpected payload");
+    }
+
+    return result
+      .filter((item): item is Record<string, XmlRpcValue> => {
+        return typeof item === "object" && item !== null && !Array.isArray(item);
+      })
+      .map((item) => ({
+        login: readString(item, "Login") ?? readString(item, "login"),
+        nickName: readString(item, "ClientName") ?? readString(item, "nickName"),
+        ipAddress: readString(item, "IPAddress") ?? readString(item, "ipAddress")
+      }));
   }
 
   public async addMap(fileName: string): Promise<void> {

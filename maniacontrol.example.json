@@ -37,6 +37,8 @@
           "read",
           "audit.read",
           "players.write",
+          "players.sanctions.read",
+          "players.sanctions.write",
           "maps.write",
           "elite.write",
           "chat.write",

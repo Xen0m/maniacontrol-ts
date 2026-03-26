@@ -245,6 +245,36 @@ export class AdminHttpServer {
         });
       }
 
+      if (method === "GET" && url.pathname === "/server/players/banlist") {
+        if (!this.hasScope(auth, "players.sanctions.read")) {
+          return await this.writeForbidden(response, auth, "players.sanctions.read");
+        }
+        const limit = clampInt(url.searchParams.get("limit"), 100, 1, 500);
+        const offset = clampInt(url.searchParams.get("offset"), 0, 0, 10_000);
+        const players = await this.client.getBanList(limit, offset);
+        return await this.writeJson(response, 200, {
+          offset,
+          limit,
+          count: players.length,
+          players
+        });
+      }
+
+      if (method === "GET" && url.pathname === "/server/players/blacklist") {
+        if (!this.hasScope(auth, "players.sanctions.read")) {
+          return await this.writeForbidden(response, auth, "players.sanctions.read");
+        }
+        const limit = clampInt(url.searchParams.get("limit"), 100, 1, 500);
+        const offset = clampInt(url.searchParams.get("offset"), 0, 0, 10_000);
+        const players = await this.client.getBlackList(limit, offset);
+        return await this.writeJson(response, 200, {
+          offset,
+          limit,
+          count: players.length,
+          players
+        });
+      }
+
       if (method === "POST" && url.pathname === "/server/maps/choose-next") {
         if (!this.hasScope(auth, "maps.write")) {
           return await this.writeForbidden(response, auth, "maps.write");
@@ -431,6 +461,103 @@ export class AdminHttpServer {
           action: "server.players.force-spectator",
           success: true,
           detail: { login, mode }
+        });
+      }
+
+      if (method === "POST" && url.pathname === "/server/players/ban") {
+        if (!this.hasScope(auth, "players.sanctions.write")) {
+          return await this.writeForbidden(response, auth, "players.sanctions.write");
+        }
+        const body = await this.readJsonBody(request);
+        const login = typeof body.login === "string" ? body.login.trim() : "";
+        const message = typeof body.message === "string" ? body.message : "";
+        const addToBlacklist = body.addToBlacklist === true;
+        const saveBlacklist = body.saveBlacklist === true;
+        if (!login) {
+          return await this.writeJson(response, 400, { error: "login is required" });
+        }
+
+        if (addToBlacklist) {
+          await this.client.banAndBlackList(login, message, saveBlacklist);
+        } else {
+          await this.client.ban(login, message);
+        }
+        this.sseHub.publish("server.playerBanned", { login, addToBlacklist, saveBlacklist });
+        return await this.writeJson(response, 200, {
+          ok: true,
+          login,
+          addToBlacklist,
+          saveBlacklist
+        }, {
+          action: addToBlacklist ? "server.players.ban-and-blacklist" : "server.players.ban",
+          success: true,
+          detail: { login, addToBlacklist, saveBlacklist }
+        });
+      }
+
+      if (method === "POST" && url.pathname === "/server/players/unban") {
+        if (!this.hasScope(auth, "players.sanctions.write")) {
+          return await this.writeForbidden(response, auth, "players.sanctions.write");
+        }
+        const body = await this.readJsonBody(request);
+        const login = typeof body.login === "string" ? body.login.trim() : "";
+        if (!login) {
+          return await this.writeJson(response, 400, { error: "login is required" });
+        }
+
+        await this.client.unBan(login);
+        this.sseHub.publish("server.playerUnbanned", { login });
+        return await this.writeJson(response, 200, {
+          ok: true,
+          login
+        }, {
+          action: "server.players.unban",
+          success: true,
+          detail: { login }
+        });
+      }
+
+      if (method === "POST" && url.pathname === "/server/players/blacklist") {
+        if (!this.hasScope(auth, "players.sanctions.write")) {
+          return await this.writeForbidden(response, auth, "players.sanctions.write");
+        }
+        const body = await this.readJsonBody(request);
+        const login = typeof body.login === "string" ? body.login.trim() : "";
+        if (!login) {
+          return await this.writeJson(response, 400, { error: "login is required" });
+        }
+
+        await this.client.blackList(login);
+        this.sseHub.publish("server.playerBlacklisted", { login });
+        return await this.writeJson(response, 200, {
+          ok: true,
+          login
+        }, {
+          action: "server.players.blacklist",
+          success: true,
+          detail: { login }
+        });
+      }
+
+      if (method === "POST" && url.pathname === "/server/players/unblacklist") {
+        if (!this.hasScope(auth, "players.sanctions.write")) {
+          return await this.writeForbidden(response, auth, "players.sanctions.write");
+        }
+        const body = await this.readJsonBody(request);
+        const login = typeof body.login === "string" ? body.login.trim() : "";
+        if (!login) {
+          return await this.writeJson(response, 400, { error: "login is required" });
+        }
+
+        await this.client.unBlackList(login);
+        this.sseHub.publish("server.playerUnblacklisted", { login });
+        return await this.writeJson(response, 200, {
+          ok: true,
+          login
+        }, {
+          action: "server.players.unblacklist",
+          success: true,
+          detail: { login }
         });
       }
 
@@ -823,6 +950,16 @@ function formatAdminActionChatMessage(
         return `[ManiaControl] Restored ${login} as player`;
       }
       return `[ManiaControl] Updated spectator state for ${login}`;
+    case "server.players.ban":
+      return login ? `[ManiaControl] Banned ${login}` : "[ManiaControl] Player banned";
+    case "server.players.ban-and-blacklist":
+      return login ? `[ManiaControl] Banned and blacklisted ${login}` : "[ManiaControl] Player banned and blacklisted";
+    case "server.players.unban":
+      return login ? `[ManiaControl] Unbanned ${login}` : "[ManiaControl] Player unbanned";
+    case "server.players.blacklist":
+      return login ? `[ManiaControl] Blacklisted ${login}` : "[ManiaControl] Player blacklisted";
+    case "server.players.unblacklist":
+      return login ? `[ManiaControl] Removed ${login} from blacklist` : "[ManiaControl] Player removed from blacklist";
     case "elite.pause":
       return "[ManiaControl] Match paused";
     case "elite.resume":
@@ -852,6 +989,8 @@ function defaultScopesForRole(role: AdminRole): string[] {
     return [
       "read",
       "players.write",
+      "players.sanctions.read",
+      "players.sanctions.write",
       "maps.write",
       "elite.write",
       "mode.write",

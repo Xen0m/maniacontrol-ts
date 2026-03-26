@@ -29,6 +29,8 @@ Typical scopes:
 - `read`
 - `audit.read`
 - `players.write`
+- `players.sanctions.read`
+- `players.sanctions.write`
 - `maps.write`
 - `elite.write`
 - `chat.write`
@@ -71,6 +73,14 @@ Returns the current mode script settings payload as reported by the dedicated se
 ### `GET /server/players`
 
 Returns the current connected players with enriched detailed info when available.
+
+### `GET /server/players/banlist?limit=100&offset=0`
+
+Returns the current server ban list.
+
+### `GET /server/players/blacklist?limit=100&offset=0`
+
+Returns the current server blacklist.
 
 ### `GET /server/maps/current`
 
@@ -189,6 +199,8 @@ Returns recent persisted admin actions from the audit log.
 - read endpoints require `read`
 - audit trail requires `audit.read`
 - player actions require `players.write`
+- sanction list access requires `players.sanctions.read`
+- ban/blacklist actions require `players.sanctions.write`
 - map actions require `maps.write`
 - Elite controls require `elite.write`
 - chat actions require `chat.write`
@@ -232,6 +244,40 @@ Missing scope returns:
 }
 ```
 
+### `POST /server/players/ban`
+
+```json
+{
+  "login": "player_login",
+  "message": "Manual admin ban",
+  "addToBlacklist": false
+}
+```
+
+### `POST /server/players/unban`
+
+```json
+{
+  "login": "player_login"
+}
+```
+
+### `POST /server/players/blacklist`
+
+```json
+{
+  "login": "player_login"
+}
+```
+
+### `POST /server/players/unblacklist`
+
+```json
+{
+  "login": "player_login"
+}
+```
+
 ### `POST /server/chat/message`
 
 ```json
@@ -269,5 +315,9 @@ Current event types:
 - `server.playerKicked`
 - `server.playerTeamForced`
 - `server.playerSpectatorForced`
+- `server.playerBanned`
+- `server.playerUnbanned`
+- `server.playerBlacklisted`
+- `server.playerUnblacklisted`
 - `server.chatMessageSent`
 - `server.noticeSent`
