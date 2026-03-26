@@ -12,6 +12,8 @@
     "mx:import": "tsx src/cli/import-smx-map.ts import",
     "deploy:list": "tsx src/cli/deploy-instance.ts list",
     "deploy:create": "tsx src/cli/deploy-instance.ts create",
+    "deploy:show": "tsx src/cli/deploy-instance.ts show",
+    "deploy:status": "tsx src/cli/deploy-instance.ts status",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run"
   },

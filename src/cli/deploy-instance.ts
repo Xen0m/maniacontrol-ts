@@ -1,6 +1,6 @@
 import { argv } from "node:process";
 
-import { createDeployInstance, listDeployInstances } from "../deploy/instance-manager.js";
+import { createDeployInstance, getDeployInstance, getDeployInstanceStatus, listDeployInstances } from "../deploy/instance-manager.js";
 
 async function main(): Promise<void> {
   const command = argv[2];
@@ -8,6 +8,23 @@ async function main(): Promise<void> {
   if (command === "list") {
     const instances = await listDeployInstances(getFlag("--root") ?? "./deployments");
     console.log(JSON.stringify({ count: instances.length, instances }, null, 2));
+    return;
+  }
+
+  if (command === "show") {
+    const id = argv[3];
+    if (!id) {
+      throw new Error("Usage: tsx src/cli/deploy-instance.ts show <id> [--root ./deployments]");
+    }
+    const instance = await getDeployInstance(getFlag("--root") ?? "./deployments", id);
+    console.log(JSON.stringify(instance, null, 2));
+    return;
+  }
+
+  if (command === "status") {
+    const id = argv[3];
+    const status = await getDeployInstanceStatus(getFlag("--root") ?? "./deployments", id);
+    console.log(JSON.stringify(status, null, 2));
     return;
   }
 
@@ -35,7 +52,10 @@ async function main(): Promise<void> {
   }
 
   throw new Error(
-    "Usage: tsx src/cli/deploy-instance.ts <list|create> [args]\n"
+    "Usage: tsx src/cli/deploy-instance.ts <list|show|status|create> [args]\n"
+    + "  list [--root ./deployments]\n"
+    + "  show <id> [--root ./deployments]\n"
+    + "  status [id] [--root ./deployments]\n"
     + "  create <id> [--root ./deployments] [--server-host 127.0.0.1] [--server-port 5000]\n"
     + "              [--server-user SuperAdmin] [--server-password change-me]\n"
     + "              [--admin-host 127.0.0.1] [--admin-port 3001] [--server-files-root ./server]"

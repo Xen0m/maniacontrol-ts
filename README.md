@@ -53,14 +53,26 @@ The repository now includes a first multi-instance deployment helper:
 
 - `npm run deploy:list`
 - `npm run deploy:create -- <id> --server-port 5000 --admin-port 3001 --server-password change-me`
+- `npm run deploy:show -- <id>`
+- `npm run deploy:status -- [id]`
 
 By default it writes:
 
 - a manifest in `./deployments/instances.json`
 - one config per instance in `./deployments/<id>/maniacontrol.local.json`
 - one data directory per instance in `./deployments/<id>/data`
+- one launcher script in `./deployments/<id>/run-instance.sh`
+- one unit file in `./deployments/systemd/maniacontrol-ts-<id>.service`
 
 This is intended for setups where you run one `maniacontrol-ts` instance per dedicated server, for example `lobby`, `elite`, or `joust`.
+
+For a VM using `systemd`, the generated unit file can be installed with a flow like:
+
+1. `sudo cp deployments/systemd/maniacontrol-ts-elite.service /etc/systemd/system/`
+2. `sudo systemctl daemon-reload`
+3. `sudo systemctl enable --now maniacontrol-ts-elite.service`
+
+`deploy:status` reports generated files for each instance and also probes `systemctl` when available.
 
 ## Chat commands
 

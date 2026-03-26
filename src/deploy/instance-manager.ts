@@ -1,5 +1,7 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { access, chmod, mkdir, readFile, writeFile } from "node:fs/promises";
+import { constants as fsConstants } from "node:fs";
 import { randomBytes } from "node:crypto";
+import { spawnSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
 
 interface DeployManifest {
@@ -12,6 +14,10 @@ export interface DeployInstanceRecord {
   label: string;
   configPath: string;
   dataDir: string;
+  workDir: string;
+  launcherPath: string;
+  systemdUnitPath: string;
+  systemdUnitName: string;
   serverHost: string;
   serverPort: number;
   adminHost: string;
@@ -41,6 +47,21 @@ export interface CreateDeployInstanceResult {
   observerToken: string;
 }
 
+export interface DeployInstanceStatus {
+  instance: DeployInstanceRecord;
+  files: {
+    configExists: boolean;
+    dataDirExists: boolean;
+    launcherExists: boolean;
+    systemdUnitExists: boolean;
+  };
+  systemd: {
+    available: boolean;
+    active?: string;
+    enabled?: string;
+  };
+}
+
 const DEFAULT_MANIFEST: DeployManifest = {
   version: 1,
   instances: []
@@ -51,8 +72,27 @@ export async function listDeployInstances(rootDir: string): Promise<DeployInstan
   return manifest.instances.slice().sort((left, right) => left.id.localeCompare(right.id));
 }
 
+export async function getDeployInstance(rootDir: string, id: string): Promise<DeployInstanceRecord> {
+  const instanceId = normalizeInstanceId(id);
+  const instances = await listDeployInstances(rootDir);
+  const instance = instances.find((entry) => entry.id === instanceId);
+  if (!instance) {
+    throw new Error(`Unknown instance "${instanceId}".`);
+  }
+  return instance;
+}
+
+export async function getDeployInstanceStatus(rootDir: string, id?: string): Promise<DeployInstanceStatus | DeployInstanceStatus[]> {
+  if (id) {
+    return buildStatus(await getDeployInstance(rootDir, id));
+  }
+  const instances = await listDeployInstances(rootDir);
+  return Promise.all(instances.map((instance) => buildStatus(instance)));
+}
+
 export async function createDeployInstance(options: CreateDeployInstanceOptions): Promise<CreateDeployInstanceResult> {
   const rootDir = resolve(options.rootDir);
+  const repoRoot = resolve(".");
   const instanceId = normalizeInstanceId(options.id);
   const instanceLabel = options.label?.trim() || instanceId;
   const manifest = await readManifest(rootDir);
@@ -67,6 +107,9 @@ export async function createDeployInstance(options: CreateDeployInstanceOptions)
   const instanceDir = resolve(rootDir, instanceId);
   const dataDir = resolve(instanceDir, "data");
   const configPath = resolve(instanceDir, "maniacontrol.local.json");
+  const launcherPath = resolve(instanceDir, "run-instance.sh");
+  const systemdUnitName = `maniacontrol-ts-${instanceId}.service`;
+  const systemdUnitPath = resolve(rootDir, "systemd", systemdUnitName);
   const createdAt = new Date().toISOString();
   const ownerToken = createToken("mcts_owner");
   const observerToken = createToken("mcts_observer");
@@ -166,12 +209,22 @@ export async function createDeployInstance(options: CreateDeployInstanceOptions)
 
   await mkdir(dataDir, { recursive: true });
   await writeJson(configPath, config);
+  await writeLauncherScript(launcherPath, repoRoot, configPath);
+  await writeSystemdUnit(systemdUnitPath, {
+    label: instanceLabel,
+    repoRoot,
+    launcherPath
+  });
 
   const instance: DeployInstanceRecord = {
     id: instanceId,
     label: instanceLabel,
     configPath: toRootRelativePath(configPath),
     dataDir: toRootRelativePath(dataDir),
+    workDir: toRootRelativePath(repoRoot),
+    launcherPath: toRootRelativePath(launcherPath),
+    systemdUnitPath: toRootRelativePath(systemdUnitPath),
+    systemdUnitName,
     serverHost: options.serverHost,
     serverPort: options.serverPort,
     adminHost: options.adminHost,
@@ -211,6 +264,26 @@ async function readManifest(rootDir: string): Promise<DeployManifest> {
   }
 }
 
+async function buildStatus(instance: DeployInstanceRecord): Promise<DeployInstanceStatus> {
+  const [configExists, dataDirExists, launcherExists, systemdUnitExists] = await Promise.all([
+    pathExists(instance.configPath),
+    pathExists(instance.dataDir),
+    pathExists(instance.launcherPath),
+    pathExists(instance.systemdUnitPath)
+  ]);
+
+  return {
+    instance,
+    files: {
+      configExists,
+      dataDirExists,
+      launcherExists,
+      systemdUnitExists
+    },
+    systemd: getSystemdStatus(instance.systemdUnitName)
+  };
+}
+
 function getManifestPath(rootDir: string): string {
   return resolve(rootDir, "instances.json");
 }
@@ -240,6 +313,73 @@ function createToken(prefix: string): string {
 async function writeJson(path: string, value: unknown): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+}
+
+async function writeLauncherScript(path: string, repoRoot: string, configPath: string): Promise<void> {
+  const content = `#!/usr/bin/env bash
+set -euo pipefail
+cd "${escapeShell(repoRoot)}"
+exec node dist/index.js --config "${escapeShell(configPath)}"
+`;
+  await mkdir(dirname(path), { recursive: true });
+  await writeFile(path, content, "utf8");
+  await chmod(path, 0o755);
+}
+
+async function writeSystemdUnit(
+  path: string,
+  options: { label: string; repoRoot: string; launcherPath: string; }
+): Promise<void> {
+  const content = `[Unit]
+Description=ManiaControl TS (${options.label})
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=${options.repoRoot}
+ExecStart=${options.launcherPath}
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+`;
+  await mkdir(dirname(path), { recursive: true });
+  await writeFile(path, content, "utf8");
+}
+
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await access(path, fsConstants.F_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function getSystemdStatus(unitName: string): DeployInstanceStatus["systemd"] {
+  const probe = spawnSync("systemctl", ["--version"], { encoding: "utf8" });
+  if (probe.error || probe.status !== 0) {
+    return { available: false };
+  }
+
+  const active = spawnSync("systemctl", ["is-active", unitName], { encoding: "utf8" });
+  const enabled = spawnSync("systemctl", ["is-enabled", unitName], { encoding: "utf8" });
+
+  return {
+    available: true,
+    active: normalizeSystemctlOutput(active.stdout || active.stderr),
+    enabled: normalizeSystemctlOutput(enabled.stdout || enabled.stderr)
+  };
+}
+
+function normalizeSystemctlOutput(value: string): string {
+  const normalized = value.trim();
+  return normalized || "unknown";
+}
+
+function escapeShell(value: string): string {
+  return value.replace(/"/g, '\\"');
 }
 
 function toRootRelativePath(path: string): string {
