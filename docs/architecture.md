@@ -70,7 +70,7 @@ The rewrite keeps the official dedicated-server control model:
 - per-title capability matrix
 - proper state stores for players, maps, and matches
 - plugin package loading from disk
-- admin HTTP API or CLI
+- CLI hardening and a smaller admin HTTP route surface
 - integration tests against a real dedicated server
 - separate stats web surface and read-model API
 

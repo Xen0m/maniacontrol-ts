@@ -29,6 +29,7 @@ This is not a drop-in replacement yet. It includes:
 - one built-in ManiaExchange import plugin
 - a lightweight TypeScript-only in-game UI layer for chat and manialink widgets
 - a shared ManiaControl-like UI foundation for sidebar entries, windows, and list/search panels
+- a private admin HTTP API consumed by `maniacontrol-companion`
 - architecture and migration notes
 
 ## Local development
