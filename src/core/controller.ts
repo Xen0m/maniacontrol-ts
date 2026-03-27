@@ -11,6 +11,12 @@ import { AdminHttpServer } from "../admin-http/server.js";
 import { ShootManiaElitePlugin } from "../plugins/builtin/shootmania-elite-plugin.js";
 import { ManiaExchangePlugin } from "../plugins/builtin/maniaexchange-plugin.js";
 
+const LEGACY_WIDGET_IDS = [
+  "maniacontrol-ts.elite.state",
+  "maniacontrol-ts.maniaexchange.sidebar",
+  "maniacontrol-ts.maniaexchange.panel"
+] as const;
+
 export class ControllerApp {
   private readonly config: AppConfig;
   private readonly logger: Logger;
@@ -63,6 +69,8 @@ export class ControllerApp {
       },
       "Dedicated server session established"
     );
+
+    await this.clearLegacyUi();
 
     this.plugins = await this.pluginRegistry.loadPlugins(
       {
@@ -122,7 +130,16 @@ export class ControllerApp {
       }
     }
 
+    await this.clearLegacyUi();
     this.client.close();
+  }
+
+  private async clearLegacyUi(): Promise<void> {
+    await this.ui.hideWidget();
+    for (const widgetId of LEGACY_WIDGET_IDS) {
+      await this.ui.clearWidget(widgetId);
+    }
+    this.logger.info({ widgetIds: LEGACY_WIDGET_IDS }, "Cleared legacy in-game widgets");
   }
 }
 
