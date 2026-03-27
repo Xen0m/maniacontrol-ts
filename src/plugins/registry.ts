@@ -1,4 +1,5 @@
 import type { PluginConfig } from "../config/schema.js";
+import { loadExternalPlugin } from "./external-loader.js";
 import type { ControllerPlugin, ControllerRuntimeContext } from "./plugin.js";
 import { ManiaExchangePlugin } from "./builtin/maniaexchange-plugin.js";
 import { ServerInfoPlugin } from "./builtin/server-info-plugin.js";
@@ -12,9 +13,14 @@ const builtinPluginFactories = new Map<string, () => ControllerPlugin>([
 
 export class PluginRegistry {
   private readonly pluginFactories: Map<string, () => ControllerPlugin>;
+  private readonly externalPluginLoader: (modulePath: string) => Promise<ControllerPlugin>;
 
-  public constructor(pluginFactories: Map<string, () => ControllerPlugin> = builtinPluginFactories) {
+  public constructor(
+    pluginFactories: Map<string, () => ControllerPlugin> = builtinPluginFactories,
+    externalPluginLoader: (modulePath: string) => Promise<ControllerPlugin> = loadExternalPlugin
+  ) {
     this.pluginFactories = pluginFactories;
+    this.externalPluginLoader = externalPluginLoader;
   }
 
   public async loadPlugins(
@@ -28,14 +34,11 @@ export class PluginRegistry {
         continue;
       }
 
-      const factory = this.pluginFactories.get(pluginConfig.id);
-      if (!factory) {
-        runtimeContext.logger.warn({ pluginId: pluginConfig.id }, "Unknown plugin id");
+      const pluginLogger = runtimeContext.logger.child({ pluginId: pluginConfig.id });
+      const plugin = await this.createPlugin(pluginConfig, pluginLogger);
+      if (!plugin) {
         continue;
       }
-
-      const plugin = factory();
-      const pluginLogger = runtimeContext.logger.child({ pluginId: plugin.id });
 
       try {
         await plugin.setup({
@@ -62,5 +65,35 @@ export class PluginRegistry {
     }
 
     return plugins;
+  }
+
+  private async createPlugin(
+    pluginConfig: PluginConfig,
+    logger: ControllerRuntimeContext["logger"]
+  ): Promise<ControllerPlugin | null> {
+    if (pluginConfig.module) {
+      try {
+        const plugin = await this.externalPluginLoader(pluginConfig.module);
+        if (plugin.id !== pluginConfig.id) {
+          logger.warn({
+            configuredPluginId: pluginConfig.id,
+            loadedPluginId: plugin.id,
+            modulePath: pluginConfig.module
+          }, "External plugin id does not match configured id");
+        }
+        return plugin;
+      } catch (error) {
+        logger.error({ error, modulePath: pluginConfig.module }, "External plugin failed to load");
+        return null;
+      }
+    }
+
+    const factory = this.pluginFactories.get(pluginConfig.id);
+    if (!factory) {
+      logger.warn({ pluginId: pluginConfig.id }, "Unknown plugin id");
+      return null;
+    }
+
+    return factory();
   }
 }

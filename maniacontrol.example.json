@@ -119,6 +119,14 @@
         "searchLimit": 6,
         "defaultQuery": "elite"
       }
+    },
+    {
+      "id": "sample-external",
+      "module": "./plugins/sample-external-plugin.mjs",
+      "enabled": false,
+      "settings": {
+        "exampleFlag": true
+      }
     }
   ]
 }

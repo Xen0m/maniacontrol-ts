@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export const pluginConfigSchema = z.object({
   id: z.string().min(1),
+  module: z.string().min(1).optional(),
   enabled: z.boolean().default(true),
   settings: z.record(z.string(), z.unknown()).optional()
 });

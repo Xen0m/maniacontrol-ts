@@ -85,6 +85,37 @@ The controller now exposes a first chat-command fallback for common actions:
 - `/elite pause`
 - `/elite resume`
 
+## External plugins
+
+Built-in plugins still use their `id` only. External plugins can now be loaded with a `module` field in `plugins[]`.
+
+Example:
+
+```json
+{
+  "id": "sample-external",
+  "module": "./plugins/sample-external-plugin.mjs",
+  "enabled": true,
+  "settings": {
+    "exampleFlag": true
+  }
+}
+```
+
+Supported module exports are:
+
+- `export default plugin`
+- `export const plugin = ...`
+- `export async function createPlugin() { ... }`
+
+The loaded value must expose:
+
+- `id: string`
+- `setup(context): Promise<void>`
+- optional `start()` and `stop()`
+
+Relative module paths are resolved from the current working directory used to launch `maniacontrol-ts`.
+
 See [docs/ui-framework.md](./docs/ui-framework.md) for the shared UI architecture and validation checklist.
 
 ## Initial target architecture
