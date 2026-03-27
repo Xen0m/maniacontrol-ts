@@ -1,60 +1,23 @@
 import type { ControllerPlugin, PluginContext } from "../plugin.js";
 import type { PlayerChatEvent } from "../../core/callbacks.js";
-import { label, manialink, renderManialink } from "../../ui/manialink.js";
-import { MANIACONTROL_STYLES, WINDOW_DEFAULTS } from "../../ui/maniacontrol-style.js";
-import { buildStatusWindow } from "../../ui/window-manager.js";
+import { ELITE_WIDGET_ID, renderEliteStateWidget } from "./elite/render.js";
+import {
+  applyPauseStatus,
+  createElitePluginSettings,
+  createInitialEliteState,
+  endEliteTurn,
+  formatTurnEndMessage,
+  formatTurnStartMessage,
+  resetEliteState,
+  SHOOTMANIA_ELITE_TITLE,
+  startEliteTurn,
+  type EliteEndTurnPayload,
+  type ElitePluginSettings,
+  type EliteStartTurnPayload,
+  type EliteStateSnapshot
+} from "./elite/state.js";
 
-const SHOOTMANIA_ELITE_TITLE = "SMStormElite@nadeolabs";
-const DEFAULT_HISTORY_LIMIT = 20;
 const STATE_CHANGED_EVENT = "Plugin.ShootManiaElite.StateChanged";
-const ELITE_WIDGET_ID = "maniacontrol-ts.elite.state";
-
-interface EliteStartTurnPayload {
-  attacker?: string;
-  defenders?: string[];
-}
-
-interface EliteEndTurnPayload {
-  victorytype?: number;
-}
-
-interface ElitePluginSettings {
-  historyLimit: number;
-  logTurns: boolean;
-  logStateSnapshots: boolean;
-  autoPauseEnabled: boolean;
-  showWidget: boolean;
-}
-
-interface EliteTurnState {
-  number: number;
-  attacker?: string;
-  defenders: string[];
-  startedAt: string;
-  endedAt?: string;
-  victoryType?: number;
-  victoryLabel?: string;
-}
-
-interface EliteStateSnapshot {
-  activeTitle: string;
-  pauseSupported: boolean;
-  paused: boolean | null;
-  turnNumber: number;
-  currentTurn: EliteTurnState | null;
-  lastCompletedTurn: EliteTurnState | null;
-  history: EliteTurnState[];
-  stats: {
-    turnsStarted: number;
-    turnsCompleted: number;
-    attackerWins: number;
-    defenderWins: number;
-    timeLimitWins: number;
-    captures: number;
-    attackerEliminated: number;
-    defendersEliminated: number;
-  };
-}
 
 export type { EliteStateSnapshot };
 
@@ -62,37 +25,13 @@ export class ShootManiaElitePlugin implements ControllerPlugin {
   public readonly id = "shootmania-elite";
 
   private context?: PluginContext;
-  private settings: ElitePluginSettings = {
-    historyLimit: DEFAULT_HISTORY_LIMIT,
-    logTurns: true,
-    logStateSnapshots: false,
-    autoPauseEnabled: false,
-    showWidget: false
-  };
-  private state: EliteStateSnapshot = {
-    activeTitle: SHOOTMANIA_ELITE_TITLE,
-    pauseSupported: false,
-    paused: null,
-    turnNumber: 0,
-    currentTurn: null,
-    lastCompletedTurn: null,
-    history: [],
-    stats: {
-      turnsStarted: 0,
-      turnsCompleted: 0,
-      attackerWins: 0,
-      defenderWins: 0,
-      timeLimitWins: 0,
-      captures: 0,
-      attackerEliminated: 0,
-      defendersEliminated: 0
-    }
-  };
+  private settings: ElitePluginSettings = createElitePluginSettings(undefined);
+  private state: EliteStateSnapshot = createInitialEliteState();
   private readonly connectedPlayers = new Set<string>();
 
   public async setup(context: PluginContext): Promise<void> {
     this.context = context;
-    this.settings = parseSettings(context.pluginConfig.settings);
+    this.settings = createElitePluginSettings(context.pluginConfig.settings);
     await context.ui.clearWidget(ELITE_WIDGET_ID);
 
     if (context.systemInfo.titleId !== SHOOTMANIA_ELITE_TITLE) {
@@ -118,7 +57,7 @@ export class ShootManiaElitePlugin implements ControllerPlugin {
     }
 
     context.callbacks.on("ManiaPlanet.BeginMap", () => {
-      this.resetState();
+      this.state = resetEliteState(this.state);
       this.emitStateChanged("map-reset");
       context.logger.info("Re-rendering Elite widget after BeginMap");
       void this.renderWidgetForActivePlayers();
@@ -145,13 +84,10 @@ export class ShootManiaElitePlugin implements ControllerPlugin {
     });
 
     context.callbacks.on("Maniaplanet.Pause.Status", (event) => {
-      const payload = event.payload as { active?: boolean; available?: boolean } | undefined;
-      if (typeof payload?.active === "boolean") {
-        this.state.paused = payload.active;
-      }
-      if (typeof payload?.available === "boolean") {
-        this.state.pauseSupported = payload.available;
-      }
+      this.state = applyPauseStatus(
+        this.state,
+        event.payload as { active?: boolean; available?: boolean } | undefined
+      );
       this.emitStateChanged("pause-status");
       void this.renderWidgetForActivePlayers();
     });
@@ -171,49 +107,24 @@ export class ShootManiaElitePlugin implements ControllerPlugin {
     });
   }
 
-  private resetState(): void {
-    this.state = {
-      activeTitle: SHOOTMANIA_ELITE_TITLE,
-      pauseSupported: this.state.pauseSupported,
-      paused: this.state.paused,
-      turnNumber: 0,
-      currentTurn: null,
-      lastCompletedTurn: null,
-      history: [],
-      stats: {
-        turnsStarted: 0,
-        turnsCompleted: 0,
-        attackerWins: 0,
-        defenderWins: 0,
-        timeLimitWins: 0,
-        captures: 0,
-        attackerEliminated: 0,
-        defendersEliminated: 0
-      }
-    };
-  }
-
   private handleEliteStartTurn(payload: EliteStartTurnPayload | undefined): void {
-    this.state.turnNumber += 1;
-    this.state.stats.turnsStarted += 1;
-    this.state.currentTurn = {
-      number: this.state.turnNumber,
-      attacker: payload?.attacker,
-      defenders: payload?.defenders ?? [],
-      startedAt: new Date().toISOString()
-    };
+    this.state = startEliteTurn(this.state, payload, new Date().toISOString());
+    const currentTurn = this.state.currentTurn;
+    if (!currentTurn) {
+      return;
+    }
 
     if (this.settings.logTurns) {
       this.context?.logger.info(
         {
-          turnNumber: this.state.currentTurn.number,
-          attacker: this.state.currentTurn.attacker,
-          defenders: this.state.currentTurn.defenders
+          turnNumber: currentTurn.number,
+          attacker: currentTurn.attacker,
+          defenders: currentTurn.defenders
         },
         "Elite turn started"
       );
       void this.context?.ui.sendInfo(
-        formatTurnStartMessage(this.state.currentTurn.number, this.state.currentTurn.attacker)
+        formatTurnStartMessage(currentTurn.number, currentTurn.attacker)
       );
     }
 
@@ -222,22 +133,16 @@ export class ShootManiaElitePlugin implements ControllerPlugin {
   }
 
   private handleEliteEndTurn(payload: EliteEndTurnPayload | undefined): void {
-    const currentTurn = this.state.currentTurn ?? {
-      number: this.state.turnNumber + 1,
-      defenders: [],
-      startedAt: new Date().toISOString()
-    };
-
-    currentTurn.endedAt = new Date().toISOString();
-    currentTurn.victoryType = payload?.victorytype;
-    currentTurn.victoryLabel = getVictoryLabel(payload?.victorytype);
-
-    this.state.currentTurn = null;
-    this.state.lastCompletedTurn = currentTurn;
-    this.state.history.unshift(currentTurn);
-    this.state.history = this.state.history.slice(0, this.settings.historyLimit);
-    this.state.stats.turnsCompleted += 1;
-    applyVictoryStats(this.state, payload?.victorytype);
+    this.state = endEliteTurn(
+      this.state,
+      payload,
+      this.settings.historyLimit,
+      new Date().toISOString()
+    );
+    const currentTurn = this.state.lastCompletedTurn;
+    if (!currentTurn) {
+      return;
+    }
 
     if (this.settings.logTurns) {
       this.context?.logger.info(
@@ -381,136 +286,4 @@ export class ShootManiaElitePlugin implements ControllerPlugin {
       [...this.connectedPlayers].map((login) => this.renderWidget([login]))
     );
   }
-}
-
-function parseSettings(settings: Record<string, unknown> | undefined): ElitePluginSettings {
-  const historyLimit = Number(settings?.historyLimit);
-  return {
-    historyLimit:
-      Number.isInteger(historyLimit) && historyLimit > 0 ? historyLimit : DEFAULT_HISTORY_LIMIT,
-    logTurns: settings?.logTurns !== false,
-    logStateSnapshots: settings?.logStateSnapshots === true,
-    autoPauseEnabled: settings?.autoPauseEnabled === true,
-    showWidget: settings?.showWidget === true
-  };
-}
-
-function getVictoryLabel(victoryType: number | undefined): string | undefined {
-  switch (victoryType) {
-    case 1:
-      return "TimeLimit";
-    case 2:
-      return "Capture";
-    case 3:
-      return "AttackerEliminated";
-    case 4:
-      return "DefendersEliminated";
-    default:
-      return undefined;
-  }
-}
-
-function applyVictoryStats(state: EliteStateSnapshot, victoryType: number | undefined): void {
-  switch (victoryType) {
-    case 1:
-      state.stats.defenderWins += 1;
-      state.stats.timeLimitWins += 1;
-      break;
-    case 2:
-      state.stats.attackerWins += 1;
-      state.stats.captures += 1;
-      break;
-    case 3:
-      state.stats.defenderWins += 1;
-      state.stats.attackerEliminated += 1;
-      break;
-    case 4:
-      state.stats.attackerWins += 1;
-      state.stats.defendersEliminated += 1;
-      break;
-    default:
-      break;
-  }
-}
-
-function formatTurnStartMessage(turnNumber: number, attacker: string | undefined): string {
-  if (attacker) {
-    return `$fffElite turn $ff0#${turnNumber}$fff started. Attacker: $ff0${attacker}`;
-  }
-  return `$fffElite turn $ff0#${turnNumber}$fff started.`;
-}
-
-function formatTurnEndMessage(turnNumber: number, victoryLabel: string | undefined): string {
-  if (victoryLabel) {
-    return `$fffElite turn $ff0#${turnNumber}$fff ended: $ff0${victoryLabel}`;
-  }
-  return `$fffElite turn $ff0#${turnNumber}$fff ended.`;
-}
-
-function renderEliteStateWidget(state: EliteStateSnapshot): string {
-  const currentTurn = state.currentTurn;
-  const scoreText = `${state.stats.attackerWins} - ${state.stats.defenderWins}`;
-  const summaryRows = [
-    { label: "Pause", value: stripColorCodes(formatPauseState(state.paused, state.pauseSupported)) },
-    { label: "Turn", value: String(currentTurn?.number ?? state.turnNumber) },
-    { label: "Score", value: scoreText }
-  ];
-
-  return renderManialink(
-    manialink(ELITE_WIDGET_ID, [
-      buildStatusWindow(
-        "Elite",
-        [
-          ...summaryRows.flatMap((row, index) => {
-            const rowY = -3.3 - index * 2.1;
-            return [
-              label({
-                posn: `-29 ${rowY} 2`,
-                sizen: "8 2",
-                halign: "left",
-                textcolor: MANIACONTROL_STYLES.secondaryTextColor,
-                textsize: "0.72",
-                textemboss: "1",
-                text: row.label
-              }),
-              label({
-                posn: `-20 ${rowY} 2`,
-                sizen: "16 2",
-                halign: "left",
-                textcolor: MANIACONTROL_STYLES.primaryTextColor,
-                textsize: "0.76",
-                textemboss: "1",
-                text: row.value
-              })
-            ];
-          })
-        ],
-        {
-          posn: WINDOW_DEFAULTS.status.posn,
-          size: WINDOW_DEFAULTS.status.size
-        }
-      )
-    ])
-  );
-}
-
-function truncate(value: string, maxLength: number): string {
-  return value.length > maxLength ? `${value.slice(0, maxLength - 1)}…` : value;
-}
-
-function stripColorCodes(value: string): string {
-  return value.replaceAll(/\$[0-9a-fk-orzs]/gi, "");
-}
-
-function formatPauseState(paused: boolean | null, supported: boolean): string {
-  if (!supported) {
-    return "$888unsupported";
-  }
-  if (paused === true) {
-    return "$f80paused";
-  }
-  if (paused === false) {
-    return "$0f0running";
-  }
-  return "$ff0unknown";
 }

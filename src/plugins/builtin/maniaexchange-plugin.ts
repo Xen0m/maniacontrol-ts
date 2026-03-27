@@ -1,65 +1,43 @@
 import type { PlayerChatEvent, PlayerManialinkPageAnswerEvent } from "../../core/callbacks.js";
 import { frame, manialink, renderManialink } from "../../ui/manialink.js";
-import { buildDefaultListRows, buildDefaultMapSearch } from "../../ui/list-helpers.js";
 import { SidebarMenuManager } from "../../ui/sidebar-menu-manager.js";
-import { buildMainWindow } from "../../ui/window-manager.js";
 import type { ControllerPlugin, PluginContext } from "../plugin.js";
 import { MapImportService } from "../../maps/map-import-service.js";
 import type { SmxMapSummary } from "../../integrations/mania-exchange/smx-client.js";
 import type { ImportedMapResult } from "../../maps/map-import-service.js";
-
-interface ManiaExchangePluginSettings {
-  mapsDirectory: string;
-  targetRelativeDirectory: string;
-  importOnStartIds: number[];
-  insertMode: "add" | "insert";
-  announceImports: boolean;
-  showWidget: boolean;
-  searchLimit: number;
-  defaultQuery: string;
-}
-
-const DEFAULT_SETTINGS: ManiaExchangePluginSettings = {
-  mapsDirectory: "./server/UserData/Maps/My Maps/SMX",
-  targetRelativeDirectory: "My Maps\\SMX",
-  importOnStartIds: [],
-  insertMode: "add",
-  announceImports: true,
-  showWidget: false,
-  searchLimit: 6,
-  defaultQuery: "elite"
-};
+import {
+  ACTION_IMPORT_PREFIX,
+  ACTION_SEARCH,
+  formatMapLabel,
+  MX_PANEL_ID,
+  renderSmxPanel,
+  SEARCH_ENTRY_NAME
+} from "./maniaexchange/render.js";
+import {
+  createManiaExchangeSettings,
+  createPlayerMxState,
+  type ManiaExchangePluginSettings,
+  type PlayerMxState
+} from "./maniaexchange/state.js";
 
 const MX_WIDGET_ID = "maniacontrol-ts.maniaexchange.sidebar";
-const MX_PANEL_ID = "maniacontrol-ts.maniaexchange.panel";
 const ACTION_OPEN_PANEL = "maniacontrol.ts.mx.open";
 const ACTION_CLOSE_PANEL = "maniacontrol.ts.mx.close";
-const ACTION_SEARCH = "maniacontrol.ts.mx.search";
-const ACTION_IMPORT_PREFIX = "maniacontrol.ts.mx.import.";
-const SEARCH_ENTRY_NAME = "maniacontrol.ts.mx.query";
 const SIDEBAR_ENTRY_ID = "maniacontrol-ts.sidebar.maniaexchange";
 const SIDEBAR_ENTRY_ORDER = 0;
-
-interface PlayerMxState {
-  query: string;
-  results: SmxMapSummary[];
-  busy: boolean;
-  panelOpen: boolean;
-  error?: string;
-}
 
 export class ManiaExchangePlugin implements ControllerPlugin {
   public readonly id = "maniaexchange";
 
   private context?: PluginContext;
-  private settings = DEFAULT_SETTINGS;
+  private settings = createManiaExchangeSettings(undefined);
   private readonly playerState = new Map<string, PlayerMxState>();
   private readonly connectedPlayers = new Set<string>();
   private readonly sidebar = new SidebarMenuManager();
 
   public async setup(context: PluginContext): Promise<void> {
     this.context = context;
-    this.settings = parseSettings(context.pluginConfig.settings);
+    this.settings = createManiaExchangeSettings(context.pluginConfig.settings);
     await context.ui.clearWidget(MX_WIDGET_ID);
     await context.ui.clearWidget(MX_PANEL_ID);
 
@@ -368,10 +346,7 @@ export class ManiaExchangePlugin implements ControllerPlugin {
     }
 
     const created = {
-      query: this.settings.defaultQuery,
-      results: [],
-      busy: false,
-      panelOpen: false
+      ...createPlayerMxState(this.settings.defaultQuery)
     } satisfies PlayerMxState;
     this.playerState.set(login, created);
     return created;
@@ -381,91 +356,4 @@ export class ManiaExchangePlugin implements ControllerPlugin {
     const entry = this.sidebar.renderEntry(SIDEBAR_ENTRY_ID, "shootmania");
     return (entry?.children ?? []).filter((child) => typeof child !== "string");
   }
-}
-
-function parseSettings(settings: Record<string, unknown> | undefined): ManiaExchangePluginSettings {
-  return {
-    mapsDirectory:
-      typeof settings?.mapsDirectory === "string"
-        ? settings.mapsDirectory
-        : DEFAULT_SETTINGS.mapsDirectory,
-    targetRelativeDirectory:
-      typeof settings?.targetRelativeDirectory === "string"
-        ? settings.targetRelativeDirectory
-        : DEFAULT_SETTINGS.targetRelativeDirectory,
-    importOnStartIds: Array.isArray(settings?.importOnStartIds)
-      ? settings.importOnStartIds.filter((value): value is number => typeof value === "number")
-      : DEFAULT_SETTINGS.importOnStartIds,
-    insertMode: settings?.insertMode === "insert" ? "insert" : DEFAULT_SETTINGS.insertMode,
-    announceImports:
-      typeof settings?.announceImports === "boolean"
-        ? settings.announceImports
-        : DEFAULT_SETTINGS.announceImports,
-    showWidget:
-      typeof settings?.showWidget === "boolean"
-        ? settings.showWidget
-        : DEFAULT_SETTINGS.showWidget,
-    searchLimit:
-      typeof settings?.searchLimit === "number" && settings.searchLimit > 0
-        ? Math.floor(settings.searchLimit)
-        : DEFAULT_SETTINGS.searchLimit,
-    defaultQuery:
-      typeof settings?.defaultQuery === "string" && settings.defaultQuery.trim().length > 0
-        ? settings.defaultQuery.trim()
-        : DEFAULT_SETTINGS.defaultQuery
-  };
-}
-
-function formatMapLabel(map: { name?: string; gbxMapName?: string; author?: string }): string {
-  const name = map.gbxMapName ?? map.name ?? "unknown";
-  return map.author ? `${name}$fff by $0bf${map.author}` : name;
-}
-
-function renderSmxPanel(state: PlayerMxState): string {
-  const rows = buildDefaultListRows(
-    state.results.slice(0, 5).map((result) => ({
-      left: `#${result.mapId} ${truncate(result.gbxMapName ?? result.name ?? "unknown", 21)}`,
-      right: truncate(result.author ?? "-", 10),
-      action: `${ACTION_IMPORT_PREFIX}${result.mapId}`,
-      actionLabel: "Import"
-    }))
-  );
-
-  const statusText = state.error
-    ? stripColorCodes(state.error)
-    : state.results.length > 0
-      ? `${state.results.length} result(s)`
-      : "Search ShootMania Exchange";
-  const statusColor = state.error ? "f88" : "aaa";
-
-  return renderManialink(
-    manialink(MX_PANEL_ID, [
-      buildMainWindow(
-        "SMX Import",
-        ACTION_CLOSE_PANEL,
-        [
-          ...buildDefaultMapSearch({
-            entryName: SEARCH_ENTRY_NAME,
-            defaultValue: state.query,
-            searchAction: ACTION_SEARCH,
-            statusText,
-            statusColor
-          }),
-          ...rows
-        ],
-        {
-          posn: "-92 34 20",
-          size: "86 44"
-        }
-      )
-    ])
-  );
-}
-
-function truncate(value: string, maxLength: number): string {
-  return value.length > maxLength ? `${value.slice(0, maxLength - 1)}…` : value;
-}
-
-function stripColorCodes(value: string): string {
-  return value.replaceAll(/\$[0-9a-fk-orzs]/gi, "");
 }
