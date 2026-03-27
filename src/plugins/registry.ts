@@ -11,6 +11,12 @@ const builtinPluginFactories = new Map<string, () => ControllerPlugin>([
 ]);
 
 export class PluginRegistry {
+  private readonly pluginFactories: Map<string, () => ControllerPlugin>;
+
+  public constructor(pluginFactories: Map<string, () => ControllerPlugin> = builtinPluginFactories) {
+    this.pluginFactories = pluginFactories;
+  }
+
   public async loadPlugins(
     runtimeContext: ControllerRuntimeContext,
     pluginConfigs: PluginConfig[]
@@ -22,7 +28,7 @@ export class PluginRegistry {
         continue;
       }
 
-      const factory = builtinPluginFactories.get(pluginConfig.id);
+      const factory = this.pluginFactories.get(pluginConfig.id);
       if (!factory) {
         runtimeContext.logger.warn({ pluginId: pluginConfig.id }, "Unknown plugin id");
         continue;
@@ -30,17 +36,29 @@ export class PluginRegistry {
 
       const plugin = factory();
       const pluginLogger = runtimeContext.logger.child({ pluginId: plugin.id });
-      await plugin.setup({
-        ...runtimeContext,
-        logger: pluginLogger,
-        pluginConfig
-      });
 
-      if (plugin.start) {
-        await plugin.start();
+      try {
+        await plugin.setup({
+          ...runtimeContext,
+          logger: pluginLogger,
+          pluginConfig
+        });
+
+        if (plugin.start) {
+          await plugin.start();
+        }
+
+        plugins.push(plugin);
+      } catch (error) {
+        pluginLogger.error({ error }, "Plugin failed during setup/start and will be skipped");
+        if (plugin.stop) {
+          try {
+            await plugin.stop();
+          } catch (stopError) {
+            pluginLogger.warn({ error: stopError }, "Plugin cleanup failed after setup/start error");
+          }
+        }
       }
-
-      plugins.push(plugin);
     }
 
     return plugins;

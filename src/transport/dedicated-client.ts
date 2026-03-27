@@ -515,6 +515,34 @@ export class DedicatedClient {
     return this.transport.drainCallbacks();
   }
 
+  public waitForDisconnect(): Promise<Error | undefined> {
+    return new Promise<Error | undefined>((resolve) => {
+      let settled = false;
+
+      const cleanup = (): void => {
+        this.transport.off("close", onClose);
+        this.transport.off("error", onError);
+      };
+      const settle = (error?: Error): void => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        cleanup();
+        resolve(error);
+      };
+      const onClose = (): void => {
+        settle();
+      };
+      const onError = (error: Error): void => {
+        settle(error);
+      };
+
+      this.transport.once("close", onClose);
+      this.transport.once("error", onError);
+    });
+  }
+
   public close(): void {
     this.transport.close();
   }
