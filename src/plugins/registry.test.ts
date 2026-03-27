@@ -121,4 +121,66 @@ describe("PluginRegistry", () => {
     expect(plugins).toEqual([healthyPlugin]);
     expect(logger.error).toHaveBeenCalledTimes(1);
   });
+
+  it("skips plugins whose setup times out", async () => {
+    vi.useFakeTimers();
+    try {
+      const stopCalls: string[] = [];
+      const slowPlugin: ControllerPlugin = {
+        id: "slow",
+        async setup() {
+          await new Promise(() => undefined);
+        },
+        async stop() {
+          stopCalls.push("slow");
+        }
+      };
+      const registry = new PluginRegistry(new Map([
+        ["slow", () => slowPlugin]
+      ]), undefined, 5);
+      const logger = createLogger();
+
+      const loadPromise = registry.loadPlugins(
+        createRuntimeContext(logger),
+        [
+          { id: "slow", enabled: true }
+        ]
+      );
+
+      await vi.advanceTimersByTimeAsync(5);
+      const plugins = await loadPromise;
+
+      expect(plugins).toEqual([]);
+      expect(stopCalls).toEqual(["slow"]);
+      expect(logger.error).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("applies shutdown timeouts when stopping plugins", async () => {
+    vi.useFakeTimers();
+    try {
+      const slowStop = vi.fn(async () => {
+        await new Promise(() => undefined);
+      });
+      const healthyStop = vi.fn(async () => undefined);
+      const registry = new PluginRegistry(new Map(), undefined, 5);
+      const logger = createLogger();
+
+      const stopPromise = registry.stopPlugins(logger as never, [
+        { id: "healthy", async setup() {}, stop: healthyStop },
+        { id: "slow", async setup() {}, stop: slowStop }
+      ]);
+
+      await vi.advanceTimersByTimeAsync(5);
+      await stopPromise;
+
+      expect(slowStop).toHaveBeenCalledTimes(1);
+      expect(healthyStop).toHaveBeenCalledTimes(1);
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

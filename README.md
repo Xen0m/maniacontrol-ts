@@ -115,6 +115,7 @@ The loaded value must expose:
 - optional `start()` and `stop()`
 
 Relative module paths are resolved from the current working directory used to launch `maniacontrol-ts`.
+Plugin lifecycle hooks are guarded by a timeout in the registry so a hung plugin does not block controller startup or shutdown indefinitely.
 
 See [docs/ui-framework.md](./docs/ui-framework.md) for the shared UI architecture and validation checklist.
 

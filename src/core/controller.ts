@@ -229,16 +229,7 @@ export class ControllerApp {
       this.adminServer = undefined;
     }
 
-    for (const plugin of [...this.plugins].reverse()) {
-      if (!plugin.stop) {
-        continue;
-      }
-      try {
-        await plugin.stop();
-      } catch (error) {
-        this.logger.warn({ error, pluginId: plugin.id }, "Plugin shutdown failed");
-      }
-    }
+    await this.pluginRegistry.stopPlugins(this.logger as never, this.plugins);
     this.plugins = [];
 
     await this.tryClearLegacyUi("shutdown");

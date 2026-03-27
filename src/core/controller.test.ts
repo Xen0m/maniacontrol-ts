@@ -37,7 +37,8 @@ describe("ControllerApp", () => {
   it("retries after a failed session bootstrap", async () => {
     const logger = createLogger();
     const pluginRegistry = {
-      loadPlugins: vi.fn(async () => [])
+      loadPlugins: vi.fn(async () => []),
+      stopPlugins: vi.fn(async () => undefined)
     };
 
     let app: ControllerApp;
@@ -102,6 +103,7 @@ describe("ControllerApp", () => {
     expect(clientCount).toBe(2);
     expect(delays).toContain(5);
     expect(pluginRegistry.loadPlugins).toHaveBeenCalledTimes(1);
+    expect(pluginRegistry.stopPlugins).toHaveBeenCalled();
     expect(clients[0]?.close).toHaveBeenCalledTimes(1);
     expect(clients[1]?.close).toHaveBeenCalledTimes(1);
     expect(logger.error).toHaveBeenCalledTimes(1);
