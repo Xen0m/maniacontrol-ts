@@ -39,4 +39,12 @@ describe("external plugin loader", () => {
       default: { nope: true }
     }, "broken-plugin")).rejects.toThrow(/not a valid controller plugin/i);
   });
+
+  it("loads the repository sample external plugin", async () => {
+    const plugin = await loadExternalPlugin(join(process.cwd(), "plugins", "sample-external-plugin.mjs"));
+    expect(plugin.id).toBe("sample-external");
+    expect(typeof plugin.setup).toBe("function");
+    expect(typeof plugin.start).toBe("function");
+    expect(typeof plugin.stop).toBe("function");
+  });
 });

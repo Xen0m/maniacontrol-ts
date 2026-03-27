@@ -102,6 +102,9 @@ Example:
 }
 ```
 
+The repository includes a working example module at [plugins/sample-external-plugin.mjs](/home/anto/projects/maniacontrol-ts/plugins/sample-external-plugin.mjs).
+It logs startup/shutdown and listens to the `/sample-external` chat command through the callback bus.
+
 Supported module exports are:
 
 - `export default plugin`
