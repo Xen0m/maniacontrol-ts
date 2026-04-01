@@ -20,7 +20,9 @@ export const adminModePresetSchema = z.object({
   label: z.string().min(1),
   description: z.string().min(1).optional(),
   scriptName: z.string().min(1).optional(),
+  scriptSourcePath: z.string().min(1).optional(),
   matchSettings: z.string().min(1).optional(),
+  matchSettingsSourcePath: z.string().min(1).optional(),
   modeSettings: z.record(z.string(), z.unknown()).optional(),
   restartAfterApply: z.boolean().default(false)
 });

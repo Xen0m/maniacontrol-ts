@@ -84,6 +84,8 @@ export async function handleAdminWriteRoute(
       return true;
     }
 
+    const installResult = await context.installModePresetAssets(presetId);
+
     if (preset.matchSettings) {
       await context.client.loadMatchSettings(preset.matchSettings);
     }
@@ -113,9 +115,19 @@ export async function handleAdminWriteRoute(
         label: preset.label,
         description: preset.description,
         scriptName: preset.scriptName,
+        scriptSourcePath: preset.scriptSourcePath,
         matchSettings: preset.matchSettings,
+        matchSettingsSourcePath: preset.matchSettingsSourcePath,
         restartAfterApply: preset.restartAfterApply,
         status: catalogEntry?.status
+      },
+      install: {
+        installedAssetCount: installResult.installedAssetCount,
+        installedAssets: installResult.installedAssets.map((asset) => ({
+          kind: asset.kind,
+          relativePath: asset.relativePath,
+          sourcePath: asset.sourcePath
+        }))
       },
       modeScriptInfo,
       modeScriptSettings
@@ -126,7 +138,10 @@ export async function handleAdminWriteRoute(
         presetId: preset.id,
         label: preset.label,
         scriptName: preset.scriptName,
+        scriptSourcePath: preset.scriptSourcePath,
         matchSettings: preset.matchSettings,
+        matchSettingsSourcePath: preset.matchSettingsSourcePath,
+        installedAssetCount: installResult.installedAssetCount,
         restartAfterApply: preset.restartAfterApply
       }
     });

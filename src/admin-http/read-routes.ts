@@ -70,7 +70,9 @@ export async function handleAdminReadRoute(
         label: preset.label,
         description: preset.description,
         scriptName: preset.scriptName,
+        scriptSourcePath: preset.scriptSourcePath,
         matchSettings: preset.matchSettings,
+        matchSettingsSourcePath: preset.matchSettingsSourcePath,
         restartAfterApply: preset.restartAfterApply,
         status: preset.status
       }))

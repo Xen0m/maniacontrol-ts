@@ -83,8 +83,9 @@
       {
         "id": "instadm",
         "label": "InstaDM",
-        "description": "Free-for-all InstaDM preset. Install InstaDM.Script.txt on the dedicated server before applying it.",
+        "description": "Free-for-all InstaDM preset. The admin backend copies the script from this repo into the server files root before applying it.",
         "scriptName": "ShootMania\\InstaDM.Script.txt",
+        "scriptSourcePath": "./vendor/maniaplanet-scripts/Modes/ShootMania/InstaDM.Script.txt",
         "modeSettings": {
           "S_TimeLimit": 600,
           "S_PointsLimit": 50,

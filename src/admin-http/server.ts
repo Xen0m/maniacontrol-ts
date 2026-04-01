@@ -13,6 +13,7 @@ import { AdminAuditLog } from "./audit-log.js";
 import { AdminActivityLog } from "./activity-log.js";
 import { LocalRecordsStore } from "./local-records-store.js";
 import { buildModeCatalog } from "../modes/mode-catalog.js";
+import { installModePresetAssets } from "../modes/mode-preset-assets.js";
 import { handleAdminReadRoute } from "./read-routes.js";
 import { handleAdminWriteRoute } from "./write-routes.js";
 import type { AdminRouteContext } from "./route-context.js";
@@ -167,6 +168,7 @@ export class AdminHttpServer {
       getElitePlugin: this.getElitePlugin,
       getManiaExchangePlugin: this.getManiaExchangePlugin,
       getModeCatalog: this.getModeCatalog.bind(this),
+      installModePresetAssets: this.installModePresetAssets.bind(this),
       readJsonBody: this.readJsonBody.bind(this),
       writeJson: this.writeJson.bind(this),
       writeForbidden: this.writeForbidden.bind(this)
@@ -366,6 +368,14 @@ export class AdminHttpServer {
       modePresets: this.config.modePresets,
       serverFilesRoot: this.config.serverFilesRoot
     });
+  }
+
+  private async installModePresetAssets(presetId: string) {
+    const preset = this.config.modePresets.find((entry) => entry.id === presetId);
+    if (!preset) {
+      throw new Error(`Unknown mode preset "${presetId}".`);
+    }
+    return installModePresetAssets(preset, this.config.serverFilesRoot);
   }
 
   private async captureRankingSnapshot(trigger: string): Promise<void> {

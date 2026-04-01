@@ -4,6 +4,7 @@ import type { AppConfig } from "../config/schema.js";
 import type { ManiaExchangePlugin } from "../plugins/builtin/maniaexchange-plugin.js";
 import type { ShootManiaElitePlugin } from "../plugins/builtin/shootmania-elite-plugin.js";
 import { buildModeCatalog } from "../modes/mode-catalog.js";
+import { installModePresetAssets } from "../modes/mode-preset-assets.js";
 import type { DedicatedClient } from "../transport/dedicated-client.js";
 import type { AdminActivityLog } from "./activity-log.js";
 import type { AdminAuditLog } from "./audit-log.js";
@@ -22,6 +23,7 @@ export interface AdminRouteContext {
   getElitePlugin: () => ShootManiaElitePlugin | undefined;
   getManiaExchangePlugin: () => ManiaExchangePlugin | undefined;
   getModeCatalog: () => Promise<Awaited<ReturnType<typeof buildModeCatalog>>>;
+  installModePresetAssets: (presetId: string) => Promise<Awaited<ReturnType<typeof installModePresetAssets>>>;
   readJsonBody: (request: IncomingMessage) => Promise<Record<string, unknown>>;
   writeJson: (
     response: ServerResponse,

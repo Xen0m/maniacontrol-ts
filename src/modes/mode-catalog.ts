@@ -1,26 +1,24 @@
 import { access } from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
-import { join, normalize, resolve } from "node:path";
+import { resolve } from "node:path";
 
 import type { AdminModePresetConfig } from "../config/schema.js";
-
-export interface ModeAssetDescriptor {
-  kind: "script" | "matchSettings";
-  label: string;
-  reference: string;
-  relativePath: string;
-  absolutePath: string;
-  exists: boolean | null;
-}
+import {
+  buildModePresetAssets,
+  type ModeAssetDescriptor,
+  planModePresetInstall
+} from "./mode-preset-assets.js";
 
 export type ModeAssetStatusKind = "installed" | "partial" | "missing" | "unchecked" | "virtual";
 
 export interface ModeAssetStatus {
   kind: ModeAssetStatusKind;
   canApply: boolean;
+  canInstall: boolean;
   checksAvailable: boolean;
   checkedAssetCount: number;
   missingAssetCount: number;
+  installableAssetCount: number;
   rootPath: string;
   rootExists: boolean;
   assets: ModeAssetDescriptor[];
@@ -52,18 +50,17 @@ async function resolvePresetStatus(
   rootPath: string,
   rootExists: boolean
 ): Promise<ModeAssetStatus> {
-  const assets = [
-    preset.scriptName ? buildScriptAsset(rootPath, preset.scriptName) : null,
-    preset.matchSettings ? buildMatchSettingsAsset(rootPath, preset.matchSettings) : null
-  ].filter((entry): entry is ModeAssetDescriptor => Boolean(entry));
+  const assets = buildModePresetAssets(preset, rootPath);
 
   if (assets.length === 0) {
     return {
       kind: "virtual",
       canApply: true,
+      canInstall: false,
       checksAvailable: false,
       checkedAssetCount: 0,
       missingAssetCount: 0,
+      installableAssetCount: 0,
       rootPath,
       rootExists,
       assets: []
@@ -74,9 +71,11 @@ async function resolvePresetStatus(
     return {
       kind: "unchecked",
       canApply: true,
+      canInstall: false,
       checksAvailable: false,
       checkedAssetCount: 0,
       missingAssetCount: 0,
+      installableAssetCount: 0,
       rootPath,
       rootExists,
       assets: assets.map((asset) => ({
@@ -92,6 +91,7 @@ async function resolvePresetStatus(
       exists: await pathExists(asset.absolutePath)
     }))
   );
+  const installPlan = await planModePresetInstall(preset, rootPath);
 
   const existingCount = checkedAssets.filter((asset) => asset.exists).length;
   const missingCount = checkedAssets.length - existingCount;
@@ -103,49 +103,16 @@ async function resolvePresetStatus(
 
   return {
     kind,
-    canApply: missingCount === 0,
+    canApply: missingCount === 0 || installPlan.installableAssetCount >= missingCount,
+    canInstall: installPlan.installableAssetCount > 0,
     checksAvailable: true,
     checkedAssetCount: checkedAssets.length,
     missingAssetCount: missingCount,
+    installableAssetCount: installPlan.installableAssetCount,
     rootPath,
     rootExists,
     assets: checkedAssets
   };
-}
-
-function buildScriptAsset(rootPath: string, scriptName: string): ModeAssetDescriptor {
-  const normalizedScript = normalizeRelativePath(scriptName);
-  return {
-    kind: "script",
-    label: "Mode script",
-    reference: scriptName,
-    relativePath: join("GameData", "Scripts", "Modes", normalizedScript),
-    absolutePath: resolve(rootPath, "GameData", "Scripts", "Modes", normalizedScript),
-    exists: null
-  };
-}
-
-function buildMatchSettingsAsset(rootPath: string, matchSettings: string): ModeAssetDescriptor {
-  const normalizedRelative = normalizeRelativePath(
-    matchSettings.replace(/^MatchSettings[\\/]+/i, "")
-  );
-  return {
-    kind: "matchSettings",
-    label: "MatchSettings",
-    reference: matchSettings,
-    relativePath: join("UserData", "Maps", "MatchSettings", normalizedRelative),
-    absolutePath: resolve(rootPath, "UserData", "Maps", "MatchSettings", normalizedRelative),
-    exists: null
-  };
-}
-
-function normalizeRelativePath(value: string): string {
-  return value
-    .replace(/\\/g, "/")
-    .replace(/^\/+/, "")
-    .split("/")
-    .filter(Boolean)
-    .join("/");
 }
 
 async function pathExists(targetPath: string): Promise<boolean> {
