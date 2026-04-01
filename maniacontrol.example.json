@@ -79,6 +79,23 @@
           "S_NbPlayersPerTeamMax": 1
         },
         "restartAfterApply": true
+      },
+      {
+        "id": "instadm",
+        "label": "InstaDM",
+        "description": "Free-for-all InstaDM preset. Install InstaDM.Script.txt on the dedicated server before applying it.",
+        "scriptName": "ShootMania\\InstaDM.Script.txt",
+        "modeSettings": {
+          "S_TimeLimit": 600,
+          "S_PointsLimit": 50,
+          "S_WeaponNumber": 2,
+          "S_ArmorMax": 1,
+          "S_AmmoMax": 1,
+          "S_AmmoGain": 1,
+          "S_Beta2Gameplay": false,
+          "S_FillUpBots": 0
+        },
+        "restartAfterApply": true
       }
     ],
     "auditPath": "./data/admin-audit.jsonl",
